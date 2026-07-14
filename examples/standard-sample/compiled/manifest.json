@@ -1,0 +1,40 @@
+{
+  "artifacts": [
+    {
+      "bytes": 7216,
+      "path": "source.body.json",
+      "role": "source_body",
+      "sha256": "a5275c2e22fab39e13bbd4a1e1e422514ba79902eb90dbf8bdf1102e9255e012"
+    },
+    {
+      "bytes": 11677,
+      "path": "document.xml",
+      "role": "feishu_xml",
+      "sha256": "34c7cb8f2b5aa72c940c19de4b29589cd4c48f9570f9bcc2eb3a5c03b229ab02"
+    },
+    {
+      "bytes": 5198,
+      "path": "boards/delivery-workflow.svg",
+      "role": "whiteboard_svg",
+      "sha256": "3cfde2fc107b6e28908df8b2a1a0683bb0d6e778c25dffd557c0c4e4fdc28e67"
+    }
+  ],
+  "asset_count": 0,
+  "board_ids": [
+    "delivery-workflow"
+  ],
+  "schema_version": "0.1",
+  "section_ids": [
+    "management-decision",
+    "mvp-boundary",
+    "core-contradictions",
+    "architecture-principles",
+    "delivery-workflow",
+    "pilot-scope",
+    "success-metrics",
+    "risk-controls",
+    "next-actions"
+  ],
+  "theme": "editorial-forest",
+  "title": "企业 AI 文档交付引擎 MVP 决策简报"
+}
