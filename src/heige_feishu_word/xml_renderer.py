@@ -163,7 +163,7 @@ def render_document_xml(body: Dict[str, Any]) -> str:
     validate_body(body)
     meta = body["meta"]
     title = _e(meta["title"])
-    blocks = [f"<title>{title}</title>", f"<h1>{title}</h1>"]
+    blocks = [f"<title>{title}</title>"]
 
     subtitle = str(meta.get("subtitle", "")).strip()
     if subtitle:
@@ -184,7 +184,6 @@ def render_document_xml(body: Dict[str, Any]) -> str:
 
     for section in body["sections"]:
         blocks.append(SECTION_RENDERERS[section["type"]](section))
-        blocks.append("<hr/>")
 
     blocks.append(
         '<callout emoji="📌" background-color="light-gray" border-color="gray">'

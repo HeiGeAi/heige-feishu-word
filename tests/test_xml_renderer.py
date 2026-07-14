@@ -8,6 +8,14 @@ from tests.fixtures import standard_body
 
 
 class DocumentXmlRendererTests(unittest.TestCase):
+    def test_does_not_duplicate_the_document_title_or_overuse_dividers(self):
+        body = standard_body()
+
+        xml = render_document_xml(body)
+
+        self.assertEqual(xml.count(body["meta"]["title"]), 1)
+        self.assertEqual(xml.count("<hr/>"), 1)
+
     def test_renders_semantic_blocks_and_embedded_whiteboard(self):
         xml = render_document_xml(standard_body())
 

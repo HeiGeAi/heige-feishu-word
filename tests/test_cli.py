@@ -1,6 +1,6 @@
 """Behavior contract for the dependency-free command line interface."""
 
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import json
 from pathlib import Path
@@ -50,7 +50,29 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["manifest"]["schema_version"], "0.1")
         self.assertTrue((output_dir / "document.xml").is_file())
 
+    def test_compile_reports_an_oversized_board_description_as_json(self):
+        body = standard_body()
+        workflow = next(
+            section
+            for section in body["sections"]
+            if section["type"] == "whiteboard_workflow"
+        )
+        workflow["steps"][0]["description"] = "超长画板说明" * 40
+        self.body_path.write_text(
+            json.dumps(body, ensure_ascii=False), encoding="utf-8"
+        )
+        stderr = StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                ["compile", str(self.body_path), "--output", str(self.root / "bad")]
+            )
+
+        payload = json.loads(stderr.getvalue())
+        self.assertEqual(exit_code, 2)
+        self.assertFalse(payload["ok"])
+        self.assertIn("too long", payload["error"])
+
 
 if __name__ == "__main__":
     unittest.main()
-

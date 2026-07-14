@@ -8,6 +8,8 @@ import re
 from typing import Any, Dict, Iterable, List, Tuple
 from xml.etree import ElementTree
 
+from .model import BodyValidationError
+
 
 CANVAS_WIDTH = 1600
 CANVAS_HEIGHT = 900
@@ -81,7 +83,11 @@ def _text_lines(
 
 def _card_svg(step: Dict[str, Any], number: int, x: int, y: int, fill: str) -> str:
     title = escape(str(step.get("title", "")))
-    description = _wrap_text(str(step.get("description", "")), 17)[:3]
+    description = _wrap_text(str(step.get("description", "")), 17)
+    if len(description) > 3:
+        raise BodyValidationError(
+            f"workflow step description is too long to fit card {number}"
+        )
     number_text = f"{number:02d}"
     return "".join(
         (

@@ -37,6 +37,13 @@ class WorkflowSvgRendererTests(unittest.TestCase):
         self.assertIn(">Word、PPT</tspan>", svg)
         self.assertNotIn(">Wo</tspan>", svg)
 
+    def test_workflow_svg_rejects_descriptions_that_do_not_fit(self):
+        section = workflow_section()
+        section["steps"][0]["description"] = "这是一段明显超过三行容量的说明文字" * 8
+
+        with self.assertRaisesRegex(ValueError, "(?i)(description|fit|long)"):
+            render_workflow_svg(section)
+
 
 if __name__ == "__main__":
     unittest.main()
