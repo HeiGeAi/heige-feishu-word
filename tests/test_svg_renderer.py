@@ -28,6 +28,15 @@ class WorkflowSvgRendererTests(unittest.TestCase):
             with self.subTest(step=step["id"]):
                 self.assertIn(step["title"], svg)
 
+    def test_workflow_svg_does_not_split_latin_words(self):
+        section = workflow_section()
+        section["steps"][0]["description"] = "文字、会议纪要、图片、PDF、Word、PPT"
+
+        svg = render_workflow_svg(section)
+
+        self.assertIn(">Word、PPT</tspan>", svg)
+        self.assertNotIn(">Wo</tspan>", svg)
+
 
 if __name__ == "__main__":
     unittest.main()

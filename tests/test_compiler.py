@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from heige_feishu_word.compiler import compile_body
+from heige_feishu_word.model import BodyValidationError
 
 from tests.fixtures import standard_body
 
@@ -50,6 +51,15 @@ class BodyCompilerTests(unittest.TestCase):
         self.assertEqual(written_manifest, manifest)
         self.assertIn("企业 AI 文档交付引擎 MVP 决策简报", document_xml)
         self.assertIn('viewBox="0 0 1600 900"', workflow_svg)
+
+    def test_rejects_assets_instead_of_silently_dropping_them(self):
+        body = standard_body()
+        body["assets"] = [{"id": "source-deck", "path": "briefing.pptx"}]
+
+        with self.assertRaisesRegex(BodyValidationError, "asset"):
+            compile_body(body, self.output_dir)
+
+        self.assertFalse(self.output_dir.exists())
 
 
 if __name__ == "__main__":

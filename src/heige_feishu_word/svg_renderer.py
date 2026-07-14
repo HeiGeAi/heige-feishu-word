@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html import escape
+import re
 from typing import Any, Dict, Iterable, List, Tuple
 from xml.etree import ElementTree
 
@@ -36,7 +37,23 @@ def _wrap_text(text: str, line_length: int = 18) -> List[str]:
     compact = " ".join(str(text).split())
     if not compact:
         return [""]
-    return [compact[index : index + line_length] for index in range(0, len(compact), line_length)]
+    tokens = re.findall(r"[A-Za-z0-9]+|[^A-Za-z0-9]", compact)
+    lines: List[str] = []
+    current = ""
+    for token in tokens:
+        if len(current) + len(token) <= line_length:
+            current += token
+            continue
+        if current.strip():
+            lines.append(current.rstrip())
+            current = ""
+        while len(token) > line_length:
+            lines.append(token[:line_length])
+            token = token[line_length:]
+        current = token.lstrip()
+    if current.strip():
+        lines.append(current.rstrip())
+    return lines or [""]
 
 
 def _text_lines(
@@ -63,14 +80,11 @@ def _text_lines(
 
 
 def _card_svg(step: Dict[str, Any], number: int, x: int, y: int, fill: str) -> str:
-    shadow_x = x + 8
-    shadow_y = y + 8
     title = escape(str(step.get("title", "")))
     description = _wrap_text(str(step.get("description", "")), 17)[:3]
     number_text = f"{number:02d}"
     return "".join(
         (
-            f'<rect x="{shadow_x}" y="{shadow_y}" width="430" height="210" fill="#1A1A17"/>',
             f'<rect x="{x}" y="{y}" width="430" height="210" fill="{fill}" '
             'stroke="#2E4A2A" stroke-width="3"/>',
             f'<rect x="{x + 24}" y="{y + 24}" width="72" height="58" fill="#E89CB1" '
@@ -117,22 +131,17 @@ def render_workflow_svg(section: Dict[str, Any]) -> str:
     ]
 
     connector_specs = (
-        (526, 365, "→"),
-        (1016, 365, "→"),
-        (1275, 495, "↓"),
-        (1016, 640, "←"),
-        (526, 640, "←"),
+        (518, 355, 562, 355),
+        (1008, 355, 1052, 355),
+        (1275, 468, 1275, 517),
+        (1008, 630, 1052, 630),
+        (518, 630, 562, 630),
     )
-    connectors = []
-    for index, (x, y, glyph) in enumerate(connector_specs[: max(0, len(steps) - 1)]):
-        connectors.append(
-            f'<circle cx="{x}" cy="{y}" r="22" fill="#EFE7D4" '
-            'stroke="#2E4A2A" stroke-width="2"/>'
-        )
-        connectors.append(
-            f'<text x="{x}" y="{y + 9}" text-anchor="middle" font-size="31" '
-            f'font-weight="700" fill="#2E4A2A">{glyph}</text>'
-        )
+    connectors = [
+        f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+        'stroke="#2E4A2A" stroke-width="5"/>'
+        for x1, y1, x2, y2 in connector_specs[: max(0, len(steps) - 1)]
+    ]
 
     title = escape(str(section.get("title", "业务交付链路")))
     return "".join(
@@ -140,9 +149,9 @@ def render_workflow_svg(section: Dict[str, Any]) -> str:
             '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" '
             'viewBox="0 0 1600 900">',
             '<rect x="0" y="0" width="1600" height="900" fill="#EFE7D4"/>',
-            '<rect x="80" y="70" width="244" height="44" fill="#E89CB1" '
+            '<rect x="80" y="70" width="330" height="44" fill="#E89CB1" '
             'stroke="#2E4A2A" stroke-width="2"/>',
-            '<text x="102" y="100" font-size="20" font-weight="700" '
+            '<text x="245" y="99" text-anchor="middle" font-size="18" font-weight="700" '
             'fill="#243A21">STANDARD WORKFLOW</text>',
             f'<text x="80" y="183" font-size="54" font-weight="700" fill="#2E4A2A">{title}</text>',
             '<rect x="1130" y="96" width="370" height="64" fill="#E6DCC4" '
@@ -195,4 +204,3 @@ def validate_svg(svg: str) -> SvgValidationReport:
     if text_nodes < 2:
         warnings.append("board contains very few editable text nodes")
     return SvgValidationReport(tuple(dict.fromkeys(errors)), tuple(warnings))
-
