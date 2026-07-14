@@ -28,6 +28,11 @@ def _balanced_ratios(count: int) -> List[str]:
     return ["0.25"] * min(count, 4)
 
 
+def _chunks(items: List[Dict[str, Any]], size: int = 3) -> Iterable[List[Dict[str, Any]]]:
+    for index in range(0, len(items), size):
+        yield items[index : index + size]
+
+
 def _render_callout(section: Dict[str, Any]) -> str:
     tone = str(section.get("tone", "info"))
     palette = {
@@ -50,21 +55,24 @@ def _render_callout(section: Dict[str, Any]) -> str:
 
 
 def _render_metrics(section: Dict[str, Any]) -> str:
-    items = list(section.get("items") or [])[:4]
-    ratios = _balanced_ratios(len(items))
-    columns = []
-    for index, item in enumerate(items):
-        value = _e(item.get("value", ""))
-        label = _e(item.get("label", ""))
-        note = _e(item.get("note", ""))
-        columns.append(
-            f'<column width-ratio="{ratios[index]}">'
-            f'<h3><span text-color="green">{value}</span></h3>'
-            f"<p><b>{label}</b></p>"
-            f'<p><span text-color="gray">{note}</span></p>'
-            "</column>"
-        )
-    return _section_title(section) + "<grid>" + "".join(columns) + "</grid>"
+    items = list(section.get("items") or [])
+    grids = []
+    for row in _chunks(items):
+        ratios = _balanced_ratios(len(row))
+        columns = []
+        for index, item in enumerate(row):
+            value = _e(item.get("value", ""))
+            label = _e(item.get("label", ""))
+            note = _e(item.get("note", ""))
+            columns.append(
+                f'<column width-ratio="{ratios[index]}">'
+                f'<h3><span text-color="green">{value}</span></h3>'
+                f"<p><b>{label}</b></p>"
+                f'<p><span text-color="gray">{note}</span></p>'
+                "</column>"
+            )
+        grids.append("<grid>" + "".join(columns) + "</grid>")
+    return _section_title(section) + "".join(grids)
 
 
 def _render_table(section: Dict[str, Any]) -> str:
@@ -90,17 +98,20 @@ def _render_table(section: Dict[str, Any]) -> str:
 
 
 def _render_grid(section: Dict[str, Any]) -> str:
-    items = list(section.get("items") or [])[:4]
-    ratios = _balanced_ratios(len(items))
-    columns = []
-    for index, item in enumerate(items):
-        columns.append(
-            f'<column width-ratio="{ratios[index]}">'
-            f"<h3>{_e(item.get('title', ''))}</h3>"
-            f"<p>{_e(item.get('body', ''))}</p>"
-            "</column>"
-        )
-    return _section_title(section) + "<grid>" + "".join(columns) + "</grid>"
+    items = list(section.get("items") or [])
+    grids = []
+    for row in _chunks(items):
+        ratios = _balanced_ratios(len(row))
+        columns = []
+        for index, item in enumerate(row):
+            columns.append(
+                f'<column width-ratio="{ratios[index]}">'
+                f"<h3>{_e(item.get('title', ''))}</h3>"
+                f"<p>{_e(item.get('body', ''))}</p>"
+                "</column>"
+            )
+        grids.append("<grid>" + "".join(columns) + "</grid>")
+    return _section_title(section) + "".join(grids)
 
 
 def _render_workflow(section: Dict[str, Any]) -> str:
@@ -181,4 +192,3 @@ def render_document_xml(body: Dict[str, Any]) -> str:
         "</callout>"
     )
     return "\n".join(blocks) + "\n"
-
