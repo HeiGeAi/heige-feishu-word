@@ -27,6 +27,28 @@
 
 当前尚未实现素材导入、飞书账号认证、云文档发布、PDF 导出和多 Agent 薄适配层。相关设计保留在 `docs/` 中，实际能力以测试和源码为准。
 
+## 案例：企业 AI 文档交付引擎 MVP 决策简报
+
+这是一个不含真实客户数据、可在本地完整复现的管理决策简报案例。Agent 先把零散业务材料整理成包含管理结论、核心矛盾、架构原则、交付流程、试点范围、指标和行动项的 Document Body，再由编译器生成飞书 XML、可编辑 SVG 画板与校验清单。
+
+![从原始材料到可验收文档的工作流画板](examples/standard-sample/compiled/boards/delivery-workflow.svg)
+
+| 案例环节 | 实际内容 |
+|---|---|
+| 业务输入 | 企业 AI 文档交付项目的目标、矛盾、风险与试点要求 |
+| 结构化 Body | 9 个 section，覆盖 6 类组件与 1 个六步流程画板 |
+| 编译输出 | 飞书 XML、可编辑 SVG、源 Body 快照和 SHA-256 清单 |
+| 安全边界 | 全部为合成数据，不包含账号、客户材料或真实身份信息 |
+
+直接查看案例文件：
+
+* [原始 Document Body](examples/standard-sample/body.json)
+* [生成后的飞书文档 XML](examples/standard-sample/compiled/document.xml)
+* [可编辑流程画板 SVG](examples/standard-sample/compiled/boards/delivery-workflow.svg)
+* [产物与 SHA-256 清单](examples/standard-sample/compiled/manifest.json)
+
+这个案例展示的是当前开源版本已经能够稳定生成的本地产物，不把尚未开源的飞书发布与 PDF 导出链路包装成现有能力。
+
 ## 快速开始
 
 要求 Python 3.9 或更高版本。
