@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
 
+import heige_feishu_word.compiler as compiler
 from heige_feishu_word.compiler import compile_body
 from heige_feishu_word.model import BodyValidationError
 
@@ -60,6 +62,47 @@ class BodyCompilerTests(unittest.TestCase):
             compile_body(body, self.output_dir)
 
         self.assertFalse(self.output_dir.exists())
+
+    def test_final_publish_failure_restores_the_previous_bundle(self):
+        self.output_dir.mkdir()
+        old_manifest = self.output_dir / "manifest.json"
+        old_manifest.write_text('{"generation":"old"}\n', encoding="utf-8")
+        backup_dir = self.output_dir.with_name(f".{self.output_dir.name}.backup")
+        real_replace = Path.replace
+
+        def fail_new_bundle_publish(source, destination):
+            if Path(destination) == self.output_dir and Path(source) != backup_dir:
+                raise OSError("injected final rename failure")
+            return real_replace(Path(source), destination)
+
+        with mock.patch.object(
+            Path, "replace", autospec=True, side_effect=fail_new_bundle_publish
+        ):
+            with self.assertRaisesRegex(OSError, "injected final rename failure"):
+                compile_body(standard_body(), self.output_dir)
+
+        self.assertTrue(self.output_dir.exists())
+        self.assertEqual(old_manifest.read_text(encoding="utf-8"), '{"generation":"old"}\n')
+        self.assertFalse(backup_dir.exists())
+
+    def test_recovers_an_interrupted_backup_before_rebuilding(self):
+        backup_dir = self.output_dir.with_name(f".{self.output_dir.name}.backup")
+        backup_dir.mkdir()
+        old_manifest = backup_dir / "manifest.json"
+        old_manifest.write_text('{"generation":"old"}\n', encoding="utf-8")
+
+        with mock.patch.object(
+            compiler, "_write_text", side_effect=OSError("injected build failure")
+        ):
+            with self.assertRaisesRegex(OSError, "injected build failure"):
+                compile_body(standard_body(), self.output_dir)
+
+        self.assertTrue(self.output_dir.exists())
+        self.assertEqual(
+            (self.output_dir / "manifest.json").read_text(encoding="utf-8"),
+            '{"generation":"old"}\n',
+        )
+        self.assertFalse(backup_dir.exists())
 
 
 if __name__ == "__main__":

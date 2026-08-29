@@ -46,6 +46,27 @@ def _workflow_sections(body: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
     )
 
 
+def _backup_path(output_dir: Path) -> Path:
+    return output_dir.with_name(f".{output_dir.name}.backup")
+
+
+def _remove_path(path: Path) -> None:
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
+
+
+def _recover_interrupted_publication(output_dir: Path) -> None:
+    backup_dir = _backup_path(output_dir)
+    if not backup_dir.exists():
+        return
+    if output_dir.exists():
+        _remove_path(backup_dir)
+    else:
+        backup_dir.replace(output_dir)
+
+
 def compile_body(body: Dict[str, Any], output_dir: Path) -> Dict[str, Any]:
     """Compile a Body into XML, board SVGs, source JSON, and a manifest."""
 
@@ -56,6 +77,7 @@ def compile_body(body: Dict[str, Any], output_dir: Path) -> Dict[str, Any]:
         )
     output_dir = Path(output_dir)
     output_dir.parent.mkdir(parents=True, exist_ok=True)
+    _recover_interrupted_publication(output_dir)
     temporary_dir = Path(
         tempfile.mkdtemp(prefix=f".{output_dir.name}.", dir=str(output_dir.parent))
     )
@@ -103,9 +125,17 @@ def compile_body(body: Dict[str, Any], output_dir: Path) -> Dict[str, Any]:
             json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         )
 
+        backup_dir = _backup_path(output_dir)
         if output_dir.exists():
-            shutil.rmtree(output_dir)
-        temporary_dir.replace(output_dir)
+            output_dir.replace(backup_dir)
+        try:
+            temporary_dir.replace(output_dir)
+        except Exception:
+            if backup_dir.exists() and not output_dir.exists():
+                backup_dir.replace(output_dir)
+            raise
+        if backup_dir.exists():
+            _remove_path(backup_dir)
         return manifest
     except Exception:
         shutil.rmtree(temporary_dir, ignore_errors=True)
