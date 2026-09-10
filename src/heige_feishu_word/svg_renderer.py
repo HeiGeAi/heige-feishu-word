@@ -14,7 +14,7 @@ from .model import BodyValidationError
 CANVAS_WIDTH = 1600
 CANVAS_HEIGHT = 900
 ALLOWED_ELEMENTS = frozenset(
-    {"svg", "g", "rect", "circle", "ellipse", "line", "polyline", "text", "tspan"}
+    {"svg", "g", "rect", "circle", "ellipse", "line", "polyline", "polygon", "path", "text", "tspan"}
 )
 FORBIDDEN_ATTRIBUTES = frozenset(
     {"filter", "mask", "clip-path", "opacity", "fill-opacity", "stroke-opacity", "href"}
@@ -55,6 +55,16 @@ def _wrap_text(text: str, line_length: int = 18) -> List[str]:
         current = token.lstrip()
     if current.strip():
         lines.append(current.rstrip())
+    if len(lines)>1 and len(lines[-1])<=3:
+        tail=lines[-2]+lines[-1]
+        breaks=[i+1 for i,c in enumerate(tail) if c in '，；。' and 4<=i+1<=line_length and 4<=len(tail)-i-1<=line_length]
+        if breaks:
+            split=min(breaks,key=lambda i:abs(i*2-len(tail)))
+            lines[-2:]=[tail[:split],tail[split:]]
+        else:
+            while len(lines[-1])<4 and len(lines[-2])>1 and ord(lines[-2][-1])>255:
+                lines[-1]=lines[-2][-1]+lines[-1]
+                lines[-2]=lines[-2][:-1]
     return lines or [""]
 
 
@@ -113,7 +123,7 @@ def _card_svg(step: Dict[str, Any], number: int, x: int, y: int, fill: str) -> s
     )
 
 
-def render_workflow_svg(section: Dict[str, Any]) -> str:
+def render_workflow_svg(section: Dict[str, Any], theme=None) -> str:
     """Render up to six workflow steps as an editable 16:9 board."""
 
     steps = list(section.get("steps") or [])
@@ -149,8 +159,14 @@ def render_workflow_svg(section: Dict[str, Any]) -> str:
         for x1, y1, x2, y2 in connector_specs[: max(0, len(steps) - 1)]
     ]
 
-    title = escape(str(section.get("title", "业务交付链路")))
-    return "".join(
+    raw_title = str(section.get("title", "业务交付链路"))
+    if len(raw_title) > 18:
+        raise BodyValidationError("workflow title too long to fit; use at most 18 characters")
+    for step in steps:
+        if sum(1 if ord(c) > 255 else 0.6 for c in step["title"]) > 10.65:
+            raise BodyValidationError("workflow step title too long to fit; use at most 11 characters")
+    title = escape(raw_title)
+    rendered = "".join(
         (
             '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" '
             'viewBox="0 0 1600 900">',
@@ -158,7 +174,7 @@ def render_workflow_svg(section: Dict[str, Any]) -> str:
             '<rect x="80" y="70" width="330" height="44" fill="#E89CB1" '
             'stroke="#2E4A2A" stroke-width="2"/>',
             '<text x="245" y="99" text-anchor="middle" font-size="18" font-weight="700" '
-            'fill="#243A21">STANDARD WORKFLOW</text>',
+            'fill="#243A21">WORKFLOW</text>',
             f'<text x="80" y="183" font-size="54" font-weight="700" fill="#2E4A2A">{title}</text>',
             '<rect x="1130" y="96" width="370" height="64" fill="#E6DCC4" '
             'stroke="#2E4A2A" stroke-width="2"/>',
@@ -169,12 +185,26 @@ def render_workflow_svg(section: Dict[str, Any]) -> str:
             *connectors,
             '<line x1="80" y1="798" x2="1500" y2="798" stroke="#2E4A2A" stroke-width="2"/>',
             '<text x="80" y="845" font-size="20" fill="#1A1A17">'
-            '同一份 Body，稳定生成正文、画板、清单与交付证据。</text>',
+            '按编号阅读流程，详细说明见正文。</text>',
             '<text x="1500" y="845" text-anchor="end" font-size="20" font-weight="700" '
-            'fill="#2E4A2A">HEIGE FEISHU WORD · MVP</text>',
+            'fill="#2E4A2A">HEIGE FEISHU WORD</text>',
             "</svg>",
         )
     )
+    if theme:
+        replacements = {"#EFE7D4": theme["canvas"], "#FFFFFF": theme["surface"],
+                        "#2E4A2A": theme["ink"], "#1A1A17": theme["ink"],
+                        "#E89CB1": theme["hairline"], "#243A21": theme["ink"],
+                        "#E5EDD6": theme["surface"], "#F2D4CF": theme["surface"],
+                        "#E6DCC4": theme["surface"]}
+        # Match only generated paint attributes, never user-authored text.
+        rendered = re.sub(
+            r'(\b(?:fill|stroke)=")(' + "|".join(replacements) + r')(")',
+            lambda m: m.group(1) + replacements[m.group(2)] + m.group(3),
+            rendered,
+        )
+    return rendered
+
 
 
 def validate_svg(svg: str) -> SvgValidationReport:
@@ -204,7 +234,7 @@ def validate_svg(svg: str) -> SvgValidationReport:
         if element_name == "text":
             text_nodes += 1
         for attribute in element.attrib:
-            if attribute in FORBIDDEN_ATTRIBUTES or attribute.startswith("on"):
+            if _local_name(attribute) in FORBIDDEN_ATTRIBUTES or _local_name(attribute).lower().startswith("on") or "url(" in element.attrib[attribute].lower():
                 errors.append(f"unsupported SVG attribute: {attribute}")
 
     if text_nodes < 2:
