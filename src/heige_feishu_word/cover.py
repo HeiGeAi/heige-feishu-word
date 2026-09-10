@@ -1,17 +1,67 @@
-"""Six deterministic opening boards, not the separate Feishu cover resource."""
+"""Compact metric figures and the legacy standalone cover renderer."""
 from html import escape
-from .model import BodyValidationError
+import re
+from .model import BodyValidationError, _required_list, _validate_item
+
+
+class _VisualCapacityError(BodyValidationError):
+    """Valid content exceeds a visual's readable capacity."""
+
+
+_TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:[.,:/+%-][A-Za-z0-9]+)*[%％]?|[\s\S]")
+
+
+def render_metrics_svg(section, theme):
+    """Compact white-page KPI strip; the native appendix retains all data."""
+    items = _required_list(section['items'], 'metrics.items')
+    for index, item in enumerate(items):
+        _validate_item(item, path=f'metrics.items[{index}]', required_keys=frozenset({'label', 'value', 'note'}))
+    if len(items) > 8:
+        raise _VisualCapacityError('metrics board supports 1 to 8 items; split the section')
+    columns = min(len(items), 4)
+    rows = (len(items) + columns - 1) // columns
+    height = 340 * rows + 40
+    width = 1520 / columns
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="{height}" viewBox="0 0 1600 {height}">',
+             f'<rect width="1600" height="{height}" fill="#ffffff"/>']
+    for i, item in enumerate(items):
+        col, row = i % columns, i // columns
+        x, y = 40 + col * width, 20 + row * 340
+        if col:
+            parts.append(f'<line x1="{x-18:g}" y1="{y+24}" x2="{x-18:g}" y2="{y+294}" stroke="{theme["hairline"]}" stroke-width="2"/>')
+        parts.append(f'<rect x="{x:g}" y="{y+12}" width="44" height="4" fill="{theme["primary"]}"/>')
+        value = item['value']
+        em = sum(1 if ord(c)>255 else .6 for c in value)
+        size = min(76, (width-42)/max(em,1))
+        if size < 32:
+            raise _VisualCapacityError('metric value too long at readable size; adjust the unit or split the section')
+        parts.append(_text(value,x,y+119,size,theme['primary'] if i==0 else theme['ink'],max(em,1)+.1,1,600))
+        parts.append(_text(item['label'],x,y+182,29,theme['ink'],(width-44)/29,2,500))
+        parts.append(_text(item['note'],x,y+252,25,theme['muted'],(width-44)/25,2))
+    parts.append('</svg>')
+    return ''.join(parts)
+
+
+def render_metrics_svg_or_none(section, theme):
+    """Return no figure only when valid metrics need a complete native table."""
+    try:
+        return render_metrics_svg(section, theme)
+    except _VisualCapacityError:
+        return None
 
 
 def _wrap(text, width):
     lines, line, size = [], '', 0
-    for c in text:
-        weight = 1 if ord(c) > 255 else 0.6
-        if size + weight > width or c == '\n':
+    tokens = _TOKEN_RE.findall(text)
+    for token in tokens:
+        weight = sum(1 if ord(c)>255 else .6 for c in token)
+        if weight > width:
+            raise _VisualCapacityError('visual text token too long to fit without splitting: '+token[:30])
+        if (size + weight > width and line) or token == '\n':
             lines.append(line)
             line, size = '', 0
-        if c != '\n':
-            line += c
+        if token != '\n':
+            line += token
             size += weight
     if line:
         lines.append(line)
@@ -24,16 +74,21 @@ def _wrap(text, width):
             split=min(breaks,key=lambda i:abs(measure(tail[:i])-measure(tail[i:])))
             lines[-2:]=[tail[:split],tail[split:]]
         else:
-            while len(lines[-1])<4 and len(lines[-2])>1 and ord(lines[-2][-1])>255:
-                lines[-1]=lines[-2][-1]+lines[-1]
-                lines[-2]=lines[-2][:-1]
+            while len(lines[-1])<4 and len(lines[-2])>1:
+                # Move complete tokens so orphan balancing never detaches a
+                # percentage sign from its number or splits a Latin word.
+                token = _TOKEN_RE.findall(lines[-2])[-1]
+                if len(token) == len(lines[-2]) or measure(token+lines[-1]) > width:
+                    break
+                lines[-1]=token+lines[-1]
+                lines[-2]=lines[-2][:-len(token)]
     return lines
 
 
 def _text(text, x, y, size, color, width, max_lines, weight=400):
     lines = _wrap(str(text), width)
     if len(lines) > max_lines:
-        raise BodyValidationError('opening board text too long to fit: '+str(text)[:30])
+        raise _VisualCapacityError('opening board text too long to fit: '+str(text)[:30])
     return ''.join(f'<text x="{x}" y="{y+i*size*1.4:g}" font-size="{size}" font-weight="{weight}" fill="{color}">{escape(line)}</text>' for i,line in enumerate(lines))
 
 

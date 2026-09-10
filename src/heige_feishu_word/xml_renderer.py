@@ -1,7 +1,7 @@
 """Render a validated Body to supported Lark CLI Docx XML.
 
-Native text stays searchable and editable. Charts carry adjacent native data
-and source paragraphs because the editable board is a snapshot of the input.
+Native text stays searchable and editable. Sources stay beside the figures;
+their complete editable data lives in an appendix to keep the reading flow clear.
 """
 from __future__ import annotations
 from html import escape
@@ -42,11 +42,13 @@ def _render_section(section, theme):
     if kind == 'prose':
         return ''.join(f'<p>{_e(p)}</p>' for p in section['paragraphs'])
     if kind == 'metrics':
-        def metric(item):
-            return f'<h2 seq="auto"><span text-color="{color}">{_e(item["value"])}</span></h2><p><b>{_e(item["label"])}</b></p><p><span text-color="gray">{_e(item["note"])}</span></p>'
-        return _grids(section['items'], metric, 2)
+        from .cover import render_metrics_svg_or_none
+        svg = render_metrics_svg_or_none(section,theme)
+        if svg is None:
+            return _table(['指标','读数','口径与说明'], [[i['label'],i['value'],i['note']] for i in section['items']])
+        return f'<whiteboard type="svg">{svg}</whiteboard>'
     if kind == 'grid':
-        return _grids(section['items'], lambda item: f'<h2 seq="auto">{_e(item["title"])}</h2><p>{_e(item["body"])}</p>', 2)
+        return _grids(section['items'], lambda item: f'<p><b>{_e(item["title"])}</b></p><p>{_e(item["body"])}</p>', 2)
     if kind == 'table':
         return _table(section['columns'], section['rows'])
     if kind == 'comparison':
@@ -54,36 +56,54 @@ def _render_section(section, theme):
     if kind == 'timeline':
         return ''.join(f'<p><span background-color="light-{color}">{_e(i["date"])}</span>　<b>{_e(i["title"])}</b>（{STATUS_LABELS[i["status"]]}）</p><p>{_e(i["body"])}</p>' for i in section['items'])
     if kind == 'whiteboard_workflow':
-        return f'<whiteboard type="svg">{render_workflow_svg(section, theme)}</whiteboard>' + ''.join(f'<p><b>{n+1}．{_e(step["title"])}</b>　{_e(step["description"])}</p>' for n,step in enumerate(section['steps']))
+        return f'<whiteboard type="svg">{render_workflow_svg(section, theme, embedded=True)}</whiteboard>'
     if kind == 'chart':
-        from .charts import render_chart_svg, chart_table
-        columns, rows = chart_table(section)
-        return f'<p><b>{_e(section["insight"])}</b></p><whiteboard type="svg">{render_chart_svg(section, theme)}</whiteboard>' + _table(columns, rows) + f'<p><span text-color="gray">数据来源：{_e(section["source"])}。图表为本次输入的静态快照。</span></p>'
+        from .charts import render_chart_svg
+        return f'<p>{_e(section["insight"])}</p><whiteboard type="svg">{render_chart_svg(section, theme, embedded=True)}</whiteboard><p><span text-color="gray">数据来源：{_e(section["source"])}。本次输入快照，完整数据见文末明细。</span></p>'
     if kind == 'actions':
         return ''.join(f'<checkbox done="false"><b>{_e(i["owner"])}</b>｜{_e(i["action"])}｜{_e(i["due"])}</checkbox>' for i in section['items'])
     raise ValueError('unsupported section type: '+kind)
+
+def _render_details(sections, theme):
+    details = []
+    for section in sections:
+        kind = section['type']
+        if kind == 'metrics':
+            from .cover import render_metrics_svg_or_none
+            if render_metrics_svg_or_none(section,theme) is None:
+                continue
+            content = _table(['指标','读数','口径与说明'], [[i['label'],i['value'],i['note']] for i in section['items']])
+        elif kind == 'chart':
+            from .charts import chart_table
+            content = _table(*chart_table(section))
+        elif kind == 'whiteboard_workflow':
+            content = ''.join(f'<p><b>{n+1}．{_e(step["title"])}</b>　{_e(step["description"])}</p>' for n,step in enumerate(section['steps']))
+        else:
+            continue
+        details.append(f'<p><b>{_e(section["title"])}</b></p>{content}')
+    if not details:
+        return ''
+    return '<h1>数据与流程明细</h1><p><span text-color="gray">以下为图中内容的可编辑原始记录，便于查数、复制与核对。修改记录后请重新生成图形。</span></p>'+''.join(details)
 
 def render_document_xml(body: Dict[str, Any]) -> str:
     validate_body(body)
     theme = get_theme(body.get('theme'))
     meta = body['meta']
     blocks = [f'<title>{_e(meta["title"])}</title>']
-    if meta.get('eyebrow'):
-        blocks.append(f'<p><span text-color="{theme["native"]}"><b>{_e(meta["eyebrow"])}</b></span></p>')
     if meta.get('subtitle'):
-        blocks.append(f'<p><b>{_e(meta["subtitle"])}</b></p>')
-    visible = [meta[k] for k in ('status','reading_time') if meta.get(k)]
+        blocks.append(f'<p>{_e(meta["subtitle"])}</p>')
+    visible = [meta[k] for k in ('eyebrow','status','reading_time') if meta.get(k)]
     if visible:
         blocks.append(f'<p><span text-color="gray">{_e(" · ".join(visible))}</span></p>')
     if meta.get('audience'):
         blocks.append(f'<p><span text-color="gray">适用读者：{_e("、".join(meta["audience"]))}</span></p>')
-    if meta.get('eyebrow'):
-        from .cover import render_cover_svg
-        blocks.append(f'<whiteboard type="svg">{render_cover_svg(body, theme)}</whiteboard>')
     blocks.append('<hr/>')
     for section in body['sections']:
         blocks.append(f'<h1 seq="auto">{_e(section["title"])}</h1>')
         blocks.append(_render_section(section, theme))
+    details = _render_details(body['sections'], theme)
+    if details:
+        blocks.append(details)
     if meta.get('disclaimer'):
         blocks.append(f'<p><span text-color="gray">{_e(meta["disclaimer"])}</span></p>')
     return '\n'.join(blocks)+'\n'

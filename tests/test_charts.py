@@ -8,6 +8,7 @@ import unittest
 from xml.etree import ElementTree as ET
 
 from heige_feishu_word.charts import chart_table, render_chart_svg, validate_chart, _em, _percent_tenths
+from heige_feishu_word.svg_renderer import validate_svg
 
 
 def chart(kind="bar", values=None, labels=None):
@@ -22,6 +23,91 @@ def nodes(svg, tag):
 
 
 class ChartTests(unittest.TestCase):
+    def test_embedded_charts_keep_all_data_without_duplicate_document_copy(self):
+        for kind in ("bar", "line", "donut", "funnel", "progress"):
+            section = chart(kind, [30.25, 20, 0])
+            original = copy.deepcopy(section)
+            svg = render_chart_svg(section, {}, embedded=True)
+            root = ET.fromstring(svg)
+            visible = "".join(root.itertext())
+            with self.subTest(kind=kind):
+                self.assertEqual(root.attrib["height"], "600")
+                self.assertEqual(root.attrib["viewBox"], "0 0 1600 600")
+                self.assertEqual(validate_svg(svg).errors, ())
+                for content in ("本期", "万元", *section["labels"], "30.25", "20", "0"):
+                    self.assertIn(content, visible)
+                for content in (section["title"], section["source"], section["insight"]):
+                    self.assertNotIn(content, visible)
+                self.assertEqual(section, original)
+                self.assertEqual(render_chart_svg(section, {}), render_chart_svg(section, {}, embedded=False))
+
+    def test_embedded_negative_bars_retain_zero_baseline_and_magnitude(self):
+        svg = render_chart_svg(chart("bar", [-20, 40, 0]), {}, embedded=True)
+        baseline = next(node for node in nodes(svg, "line") if node.attrib.get("y1") == "246")
+        zero = float(baseline.attrib["x1"])
+        bars = [node for node in nodes(svg, "rect") if node.attrib.get("fill") == "#285A48" and float(node.attrib.get("height", 0)) > 10]
+        self.assertEqual(len(bars), 3)
+        self.assertEqual(zero, 705)
+        self.assertAlmostEqual(float(bars[0].attrib["x"]) + float(bars[0].attrib["width"]), zero)
+        self.assertEqual(float(bars[1].attrib["x"]), zero)
+        self.assertEqual(float(bars[2].attrib["width"]), 0)
+        self.assertAlmostEqual(float(bars[1].attrib["width"]), 2 * float(bars[0].attrib["width"]))
+
+    def test_embedded_donut_funnel_and_progress_keep_true_proportions(self):
+        donut = render_chart_svg(chart("donut", [1, 1, 2]), {}, embedded=True)
+        self.assertEqual(len(nodes(donut, "path")), 3)
+        self.assertIn("合计4", "".join(ET.fromstring(donut).itertext()))
+        self.assertEqual(donut.count("25.0%"), 2)
+        self.assertEqual(donut.count("50.0%"), 1)
+        funnel = render_chart_svg(chart("funnel", [100, 50, 0]), {}, embedded=True)
+        widths = []
+        for node in nodes(funnel, "polygon"):
+            points = [[float(v) for v in point.split(",")] for point in node.attrib["points"].split()]
+            widths.append(points[1][0] - points[0][0])
+        self.assertEqual(widths, [590, 295, 0])
+        progress = render_chart_svg(chart("progress", [0, 25, 100]), {}, embedded=True)
+        bars = [node for node in nodes(progress, "rect") if node.attrib.get("height") == "24" and node.attrib.get("fill") != "#C9D3CC"]
+        self.assertEqual([float(node.attrib["width"]) for node in bars], [0, 160, 640])
+
+    def test_dense_embedded_figures_fit_after_the_group_transform(self):
+        for kind in ("bar", "line", "donut", "funnel", "progress"):
+            section = chart(kind, [80, 70, 60, 50, 40, 30, 20, 10], ["标签名称用于边界布局验证" + str(i) for i in range(8)])
+            section["series"][0]["name"] = "系列名称用于边界布局验证"
+            if kind in ("bar", "line"):
+                section["series"].append({"name": "另一组名称用于边界验证", "values": [10, 20, 30, 40, 50, 60, 70, 80]})
+            if kind == "line":
+                section["series"].append({"name": "第三组名称用于边界验证", "values": [20, 30, 40, 30, 20, 30, 40, 30]})
+            root = ET.fromstring(render_chart_svg(section, {}, embedded=True))
+            group = root.find("{http://www.w3.org/2000/svg}g")
+            tx, ty = [float(v) for v in re.fullmatch(r"translate\(([-.\d]+) ([-.\d]+)\)", group.attrib["transform"]).groups()]
+            boxes = []
+            for text in group.findall(".//{http://www.w3.org/2000/svg}text"):
+                size, y = float(text.attrib["font-size"]), float(text.attrib["y"]) + ty
+                for span in text:
+                    x, width = float(span.attrib["x"]) + tx, _em(span.text or "") * size
+                    y += float(span.attrib["dy"])
+                    anchor = text.attrib.get("text-anchor", "start")
+                    x -= width if anchor == "end" else width / 2 if anchor == "middle" else 0
+                    boxes.append((x, y - .85 * size, x + width, y + .2 * size, span.text))
+            with self.subTest(kind=kind):
+                for index, box in enumerate(boxes):
+                    self.assertGreaterEqual(box[0], 0, box)
+                    self.assertGreaterEqual(box[1], 0, box)
+                    self.assertLessEqual(box[2], 1600, box)
+                    self.assertLessEqual(box[3], 600, box)
+                    for other in boxes[index + 1:]:
+                        overlap_x = min(box[2], other[2]) - max(box[0], other[0])
+                        overlap_y = min(box[3], other[3]) - max(box[1], other[1])
+                        self.assertFalse(overlap_x > 1 and overlap_y > 1, (box[-1], other[-1]))
+                if kind == "line":
+                    series_lines = group.findall("{http://www.w3.org/2000/svg}polyline")
+                    self.assertEqual(len(series_lines), 3)
+                    self.assertEqual(len({node.attrib.get("stroke-dasharray", "solid") for node in series_lines}), 3)
+                    for node in series_lines:
+                        for point in node.attrib["points"].split():
+                            x, y = [float(v) for v in point.split(",")]
+                            self.assertTrue(0 <= x + tx <= 1600 and 0 <= y + ty <= 600)
+
     def test_all_chart_types_keep_every_original_value_and_context(self):
         for kind in ("bar", "line", "donut", "funnel", "progress"):
             with self.subTest(kind=kind):

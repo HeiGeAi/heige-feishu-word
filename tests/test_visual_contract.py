@@ -31,7 +31,7 @@ class VisualContractTests(unittest.TestCase):
         svg=render_workflow_svg(section,get_theme('atelier-bone'))
         text=''.join(ET.fromstring(svg).itertext())
         self.assertIn('保留 #FFFFFF 与 #2E4A2A',text)
-        self.assertIn('fill="#faf6ec"',svg)
+        self.assertIn('fill="#faf9f6"',svg)
 
     def test_theme_changes_real_output_and_rejects_misspelling(self):
         body=standard_body()
@@ -39,7 +39,7 @@ class VisualContractTests(unittest.TestCase):
         body['theme']='nocturne-teal'
         b=render_document_xml(body)
         self.assertNotEqual(a,b)
-        self.assertIn('#08090d',b)
+        self.assertIn('#087f73',b)
         body['theme']='not-a-theme'
         with self.assertRaises(BodyValidationError):validate_body(body)
 

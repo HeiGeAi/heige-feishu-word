@@ -2,7 +2,9 @@
 
 from copy import deepcopy
 from html.parser import HTMLParser
+import re
 import unittest
+from xml.etree import ElementTree as ET
 
 from heige_feishu_word.presets import PRESETS
 from heige_feishu_word.preview import (
@@ -17,25 +19,47 @@ class _Document(HTMLParser):
         super().__init__()
         self.tags = []
         self.content = []
+        self.native_content = []
+        self.headings = []
+        self._heading = None
+        self._heading_text = []
+        self._svg = 0
         self._hidden = 0
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
         self.tags.append((tag, dict(attrs)))
-        if tag in {"script", "style"}:
+        if tag in {"script", "style", "head"}:
             self._hidden += 1
+        if tag == "svg":
+            self._svg += 1
+        if tag in {"h1", "h2", "h3"}:
+            self._heading, self._heading_text = tag, []
 
     def handle_endtag(self, tag):
-        if tag in {"script", "style"}:
+        if tag in {"script", "style", "head"}:
             self._hidden -= 1
+        if tag == "svg":
+            self._svg -= 1
+        if tag == self._heading:
+            self.headings.append((tag, "".join(self._heading_text)))
+            self._heading = None
 
     def handle_data(self, data):
         if not self._hidden:
             self.content.append(data)
+            if not self._svg:
+                self.native_content.append(data)
+        if self._heading:
+            self._heading_text.append(data)
 
     @property
     def text(self):
         return " ".join(self.content)
+
+    @property
+    def native_text(self):
+        return " ".join(self.native_content)
 
 
 class PreviewTests(unittest.TestCase):
@@ -101,7 +125,7 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(sum(tag == "script" for tag, _ in document.tags), 1)
         self.assertFalse(any(any(key.startswith("on") for key in attrs) for _, attrs in document.tags))
 
-    def test_overview_contains_all_metadata_and_first_metrics_without_controls(self):
+    def test_overview_contains_only_first_metric_group_without_repeating_native_chrome(self):
         body = deepcopy(PRESETS["executive-brief"]["body"])
         body["sections"].append({
             "id": "extra-metrics", "type": "metrics", "title": "第二组指标不进概览",
@@ -109,16 +133,91 @@ class PreviewTests(unittest.TestCase):
         })
         html = render_overview_html(body)
         document = _Document(html)
-        for key, value in body["meta"].items():
+        for value in body["meta"].values():
             for text in value if isinstance(value, list) else [value]:
-                self.assertIn(text, document.text, key)
-        self.assertIn("申请预算", document.text)
+                self.assertNotIn(text, document.text)
+        metrics = next(section for section in body["sections"] if section["type"] == "metrics")
+        for item in metrics["items"]:
+            for text in item.values():
+                self.assertIn(text, document.text)
+        self.assertNotIn(metrics["title"], document.text)
         self.assertNotIn("第二组独立标签", document.text)
-        self.assertFalse(any(tag in {"button", "a", "script", "dialog", "nav"} for tag, _ in document.tags))
+        self.assertFalse(any(tag in {"button", "a", "script", "dialog", "nav", "h1", "h2", "header", "footer", "svg"} for tag, _ in document.tags))
         metadata = {attrs.get("name"): attrs.get("content") for tag, attrs in document.tags if tag == "meta"}
         self.assertEqual(metadata["use-iframe"], "true")
         self.assertEqual(metadata["html-box-height-mode"], "auto")
         self.assertLess(len(html.encode("utf-8")), 500_000)
+
+    def test_overview_without_metrics_is_empty_instead_of_a_duplicate_document_cover(self):
+        body = deepcopy(PRESETS["decision-memo"]["body"])
+        self.assertFalse(any(section["type"] == "metrics" for section in body["sections"]))
+        document = _Document(render_overview_html(body))
+        self.assertEqual(document.text.strip(), "")
+        self.assertFalse(any(tag in {"article", "h1", "h2", "footer"} for tag, _ in document.tags))
+
+    def test_overview_escapes_metric_text_and_has_no_external_resources(self):
+        attack = '<img src=x onerror="alert(1)"><script>unsafe()</script>'
+        body = deepcopy(PRESETS["executive-brief"]["body"])
+        metrics = next(section for section in body["sections"] if section["type"] == "metrics")
+        metrics["items"][0] = {"label": attack, "value": attack, "note": attack}
+        document = _Document(render_overview_html(body))
+        self.assertIn(attack, document.text)
+        self.assertFalse(any(tag in {"img", "script", "link"} for tag, _ in document.tags))
+        self.assertFalse(any(any(key.startswith("on") for key in attrs) for _, attrs in document.tags))
+
+    def test_white_document_headings_and_chart_evidence_appear_once_in_the_reading_flow(self):
+        for slug, preset in PRESETS.items():
+            with self.subTest(slug=slug):
+                body = preset["body"]
+                html = render_preview_html(body)
+                document = _Document(html)
+                self.assertEqual([heading for heading in document.headings if heading[0] == "h1"], [("h1", body["meta"]["title"])])
+                self.assertEqual([heading[1] for heading in document.headings if heading[0] == "h2"], [section["title"] for section in body["sections"]])
+                self.assertFalse(any(tag == "nav" for tag, _ in document.tags))
+                self.assertNotIn('class="hero"', html)
+                self.assertNotIn("background-image:", html)
+                self.assertIn("width:min(820px", html)
+                self.assertIn("body{margin:0;background:#fff", html)
+                charts = [section for section in body["sections"] if section["type"] == "chart"]
+                for chart in charts:
+                    self.assertEqual(document.native_text.count(chart["insight"]), 1)
+                    self.assertEqual(document.native_text.count(chart["source"]), 1)
+                for svg in re.findall(r"<svg\b.*?</svg>", html, re.DOTALL):
+                    root = ET.fromstring(svg)
+                    visible = " ".join("".join(node.itertext()) for node in root.iter() if node.tag.rsplit("}", 1)[-1] == "text")
+                    self.assertNotIn(body["meta"]["title"], visible)
+                    for chart in charts:
+                        self.assertNotIn(chart["title"], visible)
+                        self.assertNotIn(chart["source"], visible)
+                        self.assertNotIn(chart["insight"], visible)
+
+    def test_metrics_have_one_artwork_and_complete_native_text_in_preview(self):
+        from heige_feishu_word.cover import render_metrics_svg
+        from heige_feishu_word.themes import get_theme
+
+        body = deepcopy(PRESETS["executive-brief"]["body"])
+        metrics = next(section for section in body["sections"] if section["type"] == "metrics")
+        html = render_preview_html(body)
+        document = _Document(html)
+        self.assertEqual(html.count(render_metrics_svg(metrics, get_theme(body["theme"]))), 1)
+        self.assertFalse(any(attrs.get("class") == "metric-value" for _, attrs in document.tags))
+        for item in metrics["items"]:
+            for text in item.values():
+                self.assertIn(text, document.native_text)
+
+    def test_figure_controls_retain_original_size_fit_escape_and_print_support(self):
+        html = render_preview_html(PRESETS["executive-brief"]["body"])
+        document = _Document(html)
+        attributes = {key for tag, attrs in document.tags if tag == "button" for key in attrs}
+        self.assertTrue({"data-actual", "data-enlarge", "data-fit", "data-close", "data-print"}.issubset(attributes))
+        self.assertIn("original.viewBox", html)
+        self.assertIn("resize(nativeWidth)", html)
+        self.assertIn("event.key==='Escape'", html)
+        self.assertIn("origin.focus()", html)
+        self.assertIn("beforeprint", html)
+        self.assertIn("afterprint", html)
+        self.assertIn("prefers-reduced-motion:reduce", html)
+        self.assertNotIn("innerHTML", html)
 
     def test_gallery_links_are_local_and_untrusted_directory_names_are_rejected(self):
         entries = [dict(slug=slug, **preset) for slug, preset in PRESETS.items()]

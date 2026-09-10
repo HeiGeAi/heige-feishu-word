@@ -16,40 +16,40 @@ def _theme(slug, name, layout, colors, native, description, display):
                 native=native, description=description, display=display)
 
 
+# Feishu documents have a white reading surface. These are document adaptations
+# of the original design systems, not reproductions of their standalone pages.
 THEMES = {
-    "atelier-bone": _theme("atelier-bone", "象牙管理简报", "editorial",
-        ("#f3ede1", "#faf6ec", "#33302b", "#6b655c", "#d9cfbd", "#a98b4e", "#221e18"),
-        "orange", "象牙纸、金线起笔、大数字与疏朗节奏。适合管理层简报。", "serif"),
-    "grid-bureau": _theme("grid-bureau", "瑞士经营看板", "ledger",
-        ("#f4f5f7", "#ffffff", "#1a1d24", "#5b6270", "#d5d8dd", "#2757d6", "#14171d"),
-        "blue", "编号侧栏、等宽读数、严整基线。适合经营数据与周报。", "sans"),
-    "nocturne-teal": _theme("nocturne-teal", "深空项目战报", "nocturne",
-        ("#08090d", "#0f1319", "#e9edf3", "#8a94a4", "#20262f", "#2dd4bf", "#5ff0dc"),
-        "green", "深空底、电青焦点、状态灯。适合项目进展与技术复盘。", "sans"),
-    "broadsheet": _theme("broadsheet", "大报研究速递", "press",
-        ("#f4f1ea", "#ece6d8", "#1c1a16", "#5c554a", "#cdc6b8", "#c0392b", "#1c1a16"),
-        "red", "报头双线、衬线标题、证据分栏。适合洞察与研究报告。", "serif"),
-    "moxi-void": _theme("moxi-void", "水墨决策备忘", "ink",
-        ("#f4f0e6", "#fbf8f0", "#1c1a17", "#6b655c", "#d9d2c2", "#1c1a17", "#c8483a"),
-        "gray", "松烟墨、朱砂落款、宽留白。适合战略思考与方案评审。", "serif"),
-    "soundwave-wrapped": _theme("soundwave-wrapped", "声浪发布提案", "festival",
-        ("#0e0c14", "#1b1826", "#f7f4ec", "#ada8bc", "#2e2b3c", "#ff2d95", "#ffe500"),
-        "purple", "粉色宣告、电黄高光、波形节奏。适合发布和活动复盘。", "sans"),
+    "atelier-bone": _theme("atelier-bone", "白金管理简报", "editorial",
+        ("#ffffff", "#faf9f6", "#252a34", "#68707c", "#e6e8ed", "#8b6d37", "#65563e"),
+        "orange", "白纸、细金线、克制留白。先呈现判断，再展开证据。", "sans"),
+    "grid-bureau": _theme("grid-bureau", "蓝图经营复盘", "ledger",
+        ("#ffffff", "#f7f9fc", "#242b37", "#647084", "#e6eaf0", "#2757d6", "#516b9b"),
+        "blue", "白色记录页、蓝色读数、精确对齐，适合周期复盘。", "sans"),
+    "nocturne-teal": _theme("nocturne-teal", "青岚项目简报", "nocturne",
+        ("#ffffff", "#f6faf9", "#263438", "#65777b", "#e2eae8", "#087f73", "#4b9188"),
+        "green", "白页、电青收敛为深青，细线组织进度与风险。", "sans"),
+    "broadsheet": _theme("broadsheet", "知见研究速递", "press",
+        ("#ffffff", "#faf8f6", "#2c2b29", "#716d67", "#e8e4df", "#a74032", "#77665a"),
+        "red", "白色报页、细双线、小面积砖红，证据优先。", "serif"),
+    "moxi-void": _theme("moxi-void", "朱墨决策备忘", "ink",
+        ("#ffffff", "#faf9f7", "#30302e", "#72716d", "#e5e4e1", "#494944", "#b34b3f"),
+        "gray", "白纸深墨、朱砂小印、同口径比较，留白服务阅读。", "serif"),
+    "soundwave-wrapped": _theme("soundwave-wrapped", "玫红发布提案", "festival",
+        ("#ffffff", "#fcf8fa", "#332b32", "#786b77", "#ece4e9", "#b52664", "#80647d"),
+        "purple", "白页与少量玫红标记，声浪缩为短线，突出发布重点。", "sans"),
     "editorial-forest": _theme("editorial-forest", "森林编辑部", "editorial",
-        ("#efe7d4", "#ffffff", "#2e4a2a", "#53604f", "#c6ccb8", "#2e4a2a", "#e89cb1"),
-        "green", "兼容原有森林样式，扩展完整图表和正文。", "serif"),
+        ("#ffffff", "#f7f9f5", "#2d3a30", "#667366", "#e3e8df", "#43684b", "#866e57"),
+        "green", "兼容原有主题标识，使用白页与森林绿。", "serif"),
 }
 
-# Data marks need separation from the canvas. Hairline is never a data color.
-# Numbered labels remain present so color is never the sole identifier.
 _DATA_PALETTES = {
-    "atelier-bone": ["#a98b4e", "#33302b", "#6b655c", "#8f7550", "#535c52", "#927264", "#706853", "#7b7b70"],
-    "grid-bureau": ["#2757d6", "#1a1d24", "#5b6270", "#3a67ad", "#7889a2", "#365072", "#737980", "#516bb5"],
-    "nocturne-teal": ["#2dd4bf", "#e9edf3", "#8a94a4", "#68b6ad", "#b7ccc9", "#59a1b0", "#a1b6d0", "#6f958c"],
-    "broadsheet": ["#c0392b", "#1c1a16", "#5c554a", "#9a6f59", "#7e8273", "#8c605f", "#596777", "#918061"],
-    "moxi-void": ["#1c1a17", "#6b655c", "#968b77", "#4d5650", "#666f71", "#86796c", "#47443e", "#737765"],
-    "soundwave-wrapped": ["#ff2d95", "#ffe500", "#91acff", "#f7f4ec", "#ada8bc", "#f69cce", "#cac26a", "#7ec9ce"],
-    "editorial-forest": ["#2e4a2a", "#a34b61", "#657659", "#966940", "#586e82", "#8d716d", "#405450", "#71715c"],
+    "atelier-bone": ["#8b6d37", "#738799", "#6e8191", "#c1ac88", "#758579", "#a88879", "#8c8997", "#afb4ad"],
+    "grid-bureau": ["#2757d6", "#6f8dad", "#536b8e", "#869ea7", "#8c96ba", "#657a91", "#b4becb", "#777f99"],
+    "nocturne-teal": ["#087f73", "#608f85", "#527e89", "#88a8b8", "#668f7c", "#abbcad", "#627593", "#839bab"],
+    "broadsheet": ["#a74032", "#9c7e66", "#7b8b95", "#a78b81", "#8e967e", "#a797b1", "#687683", "#b5b3a3"],
+    "moxi-void": ["#494944", "#808078", "#7c8883", "#a99b8e", "#727c89", "#b9b9b1", "#8c8a80", "#a5b2ab"],
+    "soundwave-wrapped": ["#b52664", "#b36e8b", "#8d829d", "#c0b4ce", "#927d85", "#bf909a", "#899ca8", "#a1ada7"],
+    "editorial-forest": ["#43684b", "#a2b59b", "#718680", "#ac957e", "#73849b", "#9d9296", "#9eaa91", "#747e70"],
 }
 for _slug, _colors in _DATA_PALETTES.items():
     THEMES[_slug]["palette"] = _colors

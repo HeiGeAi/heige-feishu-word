@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from html import escape
 import re
+import unicodedata
 from typing import Any, Dict, Iterable, List, Tuple
 from xml.etree import ElementTree
 
@@ -123,14 +124,107 @@ def _card_svg(step: Dict[str, Any], number: int, x: int, y: int, fill: str) -> s
     )
 
 
-def render_workflow_svg(section: Dict[str, Any], theme=None) -> str:
-    """Render up to six workflow steps as an editable 16:9 board."""
+def _flow_em(text: str) -> float:
+    return sum(0.0 if unicodedata.combining(c) else (1.0 if unicodedata.east_asian_width(c) in "WF" else 0.6) for c in text)
+
+
+def _flow_lines(text: str, width: float, path: str, limit: int) -> List[str]:
+    """Wrap complete copy by its estimated rendered width, preserving all glyphs."""
+    if not isinstance(text, str) or not text.strip():
+        raise BodyValidationError(f"{path} must be a non-empty string")
+    lines: List[str] = []
+    for paragraph in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        wrapped: List[str] = []
+        current = ""
+        for token in re.findall(r"[A-Za-z0-9_]+|[^A-Za-z0-9_]", paragraph):
+            if _flow_em(token) > width:
+                raise BodyValidationError(f"{path} contains a word too long to fit the embedded workflow; no text was truncated")
+            if current and _flow_em(current + token) > width:
+                wrapped.append(current)
+                current = ""
+            current += token
+        if current or not wrapped:
+            wrapped.append(current)
+        if len(wrapped) > 1 and _flow_em(wrapped[-1]) <= 3:
+            tail = wrapped[-2] + wrapped[-1]
+            breaks = [i + 1 for i, c in enumerate(tail) if c in "，；。" and 4 <= _flow_em(tail[:i+1]) <= width and 4 <= _flow_em(tail[i+1:]) <= width]
+            if breaks:
+                split = min(breaks, key=lambda i: abs(_flow_em(tail[:i]) - _flow_em(tail[i:])))
+                wrapped[-2:] = [tail[:split], tail[split:]]
+            else:
+                while _flow_em(wrapped[-1]) < 4 and len(wrapped[-2]) > 1 and unicodedata.east_asian_width(wrapped[-2][-1]) in "WF":
+                    wrapped[-1] = wrapped[-2][-1] + wrapped[-1]
+                    wrapped[-2] = wrapped[-2][:-1]
+        lines.extend(wrapped)
+    if len(lines) > limit:
+        raise BodyValidationError(f"{path} is too long: requires {len(lines)} lines, exceeding {limit} readable lines in the embedded workflow; shorten the copy or split the workflow. No text was truncated.")
+    return lines
+
+
+def _embedded_workflow_svg(steps: List[Dict[str, Any]], theme) -> str:
+    from .themes import get_theme
+
+    visual = theme if theme is not None else get_theme()
+    for key in ("surface", "ink", "hairline", "primary"):
+        if not isinstance(visual.get(key), str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", visual[key]):
+            raise BodyValidationError(f"theme.{key} must be a six-digit hexadecimal color")
+    ink, primary, hairline = visual["ink"], visual["primary"], visual["hairline"]
+    columns = len(steps) if len(steps) <= 4 else 3
+    gap, margin = 40, 48
+    width = (CANVAS_WIDTH - margin * 2 - gap * (columns - 1)) / columns
+    prepared = []
+    for index, step in enumerate(steps):
+        path = f"workflow.steps[{index}]"
+        title = _flow_lines(step.get("title"), (width - 58) / 32, path + ".title", 2)
+        description = _flow_lines(step.get("description"), width / 28, path + ".description", 5)
+        prepared.append((title, description))
+    row_specs = []
+    top = 24
+    for start in range(0, len(steps), columns):
+        row = prepared[start:start + columns]
+        title_lines = max(len(item[0]) for item in row)
+        body_lines = max(len(item[1]) for item in row)
+        row_height = title_lines * 40 + body_lines * 36 + 40
+        row_specs.append((start, top, title_lines, row_height))
+        top += row_height + 64
+    height = max(240, top - 64 + 24)
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="{height}" viewBox="0 0 1600 {height}" font-family="Noto Sans SC, sans-serif">',
+             f'<rect x="0" y="0" width="1600" height="{height}" fill="#FFFFFF"/>']
+    for row_index, (start, top, title_lines, row_height) in enumerate(row_specs):
+        count = min(columns, len(steps) - start)
+        for column in range(count):
+            index = start + column
+            x = margin + column * (width + gap)
+            title, description = prepared[index]
+            parts += [f'<g id="workflow-step-{index+1}">',
+                      f'<circle cx="{x+20:g}" cy="{top+24:g}" r="20" fill="{visual["surface"]}" stroke="{primary}" stroke-width="1.5"/>',
+                      f'<text x="{x+20:g}" y="{top+33:g}" text-anchor="middle" font-size="26" font-weight="600" fill="{ink}">{index+1}</text>',
+                      _text_lines(title, x=x+58, y=top+34, font_size=32, fill=ink, line_height=40, font_weight=600),
+                      _text_lines(description, x=x, y=top+title_lines*40+48, font_size=28, fill=ink, line_height=36),
+                      '</g>']
+            if column + 1 < count:
+                left, right, y = x + width + 8, x + width + gap - 8, top + 24
+                parts += [f'<line x1="{left:g}" y1="{y:g}" x2="{right:g}" y2="{y:g}" stroke="{hairline}" stroke-width="2"/>',
+                          f'<polyline points="{right-5:g},{y-5:g} {right:g},{y:g} {right-5:g},{y+5:g}" fill="none" stroke="{primary}" stroke-width="1.5"/>']
+        if row_index + 1 < len(row_specs):
+            next_top = row_specs[row_index+1][1]
+            middle_y = top + row_height + 32
+            points = f"1562,{top+24:g} 1576,{top+24:g} 1576,{middle_y:g} 24,{middle_y:g} 24,{next_top+24:g} 44,{next_top+24:g}"
+            parts += [f'<polyline points="{points}" fill="none" stroke="{hairline}" stroke-width="2"/>',
+                      f'<polyline points="39,{next_top+19:g} 44,{next_top+24:g} 39,{next_top+29:g}" fill="none" stroke="{primary}" stroke-width="1.5"/>']
+    return "".join(parts) + "</svg>"
+
+
+def render_workflow_svg(section: Dict[str, Any], theme=None, *, embedded: bool = False) -> str:
+    """Render up to six steps as a standalone board or a compact document figure."""
 
     steps = list(section.get("steps") or [])
     if not steps:
         raise ValueError("whiteboard_workflow requires at least one step")
     if len(steps) > 6:
         raise ValueError("whiteboard_workflow supports at most six steps in v0.1")
+    if embedded:
+        return _embedded_workflow_svg(steps, theme)
 
     positions = (
         (80, 250),
@@ -221,10 +315,11 @@ def validate_svg(svg: str) -> SvgValidationReport:
         errors.append("root element must be svg")
     if root.attrib.get("width") != str(CANVAS_WIDTH):
         errors.append("canvas width must be 1600")
-    if root.attrib.get("height") != str(CANVAS_HEIGHT):
-        errors.append("canvas height must be 900")
-    if root.attrib.get("viewBox") != "0 0 1600 900":
-        errors.append("viewBox must be 0 0 1600 900")
+    height = root.attrib.get("height", "")
+    if not re.fullmatch(r"[0-9]+", height) or not 240 <= int(height) <= 1000:
+        errors.append("canvas height must be an integer from 240 to 1000")
+    elif root.attrib.get("viewBox") != f"0 0 1600 {int(height)}":
+        errors.append(f"viewBox must be 0 0 1600 {int(height)}")
 
     text_nodes = 0
     for element in root.iter():

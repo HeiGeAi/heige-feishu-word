@@ -1,69 +1,97 @@
 # 飞书云文档视觉能力研究
 
-研究日期：2026-09-10。产品版本和客户端能力可能继续变化。
+研究日期：2026-09-10。官方接口、租户能力和客户端效果可能继续变化。本文区分官方能力、本项目的设计选择和仍需实际验证的环节。
 
-## 设计判断
+## 从宿主文档出发
 
-高质量汇报需要让读者迅速找到结论、理解差异、核查依据并采取行动。视觉系统应建立在真实业务关系上。原生正文承担可编辑与搜索，图表承担比较与解释，图后保留数据表、结论和来源。
+飞书文档采用纵向块流，默认阅读宽度约 820px，原生标题、正文和表格遵循客户端样式体系。官方 XML 文档建议以中性色为主，用颜色表达语义。项目因此把白色文档页作为默认宿主，在这个阅读环境中安排标题、结论、数字和图表。[官方 Docx XML 说明](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-xml.md)
 
-本轮采用三层输出：
+这是本项目的设计判断：图示需要和前后的正文一起成立。反复插入大幅开场海报、独立背景或重复标题，会增加块之间的断裂感。当前六套样式共享白底，将区别放在重点色、细线、数字组织和少量标记上。
 
-1. `document.xml`：原生正文、语义分栏、表格、SVG 画板。开篇画板表达视觉主题。
-2. `preview.html`：离线设计预览，适合选模板和审阅内容。原生飞书字体和块间距以客户端为准。
-3. `document.enhanced.xml`：将开篇画板换为可选的 HTML 概览。正文与图表仍保持原生块。HTML 可用性取决于租户和客户端。
+推荐阅读顺序为：原生标题与精简 metadata、核心判断、KPI、正文与图示、行动、数据与流程明细。每张图旁保留来源与解读；完整数值和流程全文集中到文末，以原生表格和文本供读者复核。该组织方式是本项目的选择，并非飞书要求所有文档采用同一顺序。
 
-顶部 SVG 是正文中的开篇画板，不能称为飞书原生封面资源。
+## 输出如何配合
+
+| 输出 | 阅读方式 | 明确边界 |
+| :--- | :--- | :--- |
+| `document.xml` | 原生正文配合紧凑白底 KPI、图表与流程画板，完整明细在文末 | 图表是输入快照，附录可编辑但不会驱动画板更新 |
+| `preview.html` | 820px 白页预览，明细在图下 `details` 中按需展开 | 展开、放大和打印是离线网页能力，不代表飞书具有同样交互 |
+| `document.enhanced.xml` | 将第一个 KPI 画板替换为静态 HTML 数字组 | 仅第一个 `metrics` 可生成画板时生成，需验证租户与客户端支持 |
+| `standalone/<id>.svg` | 单张图独立查看，包含完整标题、来源和解读 | 是分享版图示，不应整张作为文档内的重复封面 |
+
+HTML 指标块不重复原生标题、metadata、章节编号或免责声明。官方 HTML5 说明要求使用单文件 HTML、明确高度模式，并通过 `reference_map` 保存内容；总量上限为 500KB。项目使用 `auto` 高度与静态自适应排版，无脚本或外链依赖。[官方 HTML5 扩展块说明](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-xml-extended-blocks.md)
 
 ## 能力矩阵
 
-| 能力 | 当前官方接口 | 视觉边界 | 本项目策略 |
-| :--- | :--- | :--- | :--- |
-| 原生正文 | 标题、段落、富文本、列表、复选项 | 客户端字体和字号体系，不能注入网页 CSS | 保留可读、可搜索和可编辑的正文 |
-| 分栏 | grid / column，列宽比例之和为 1 | 移动端布局不能由本地网页结果推断 | 使用短两栏，不把长段落压成三栏 |
-| 高亮块 | callout，语义背景与边框颜色 | 子块只支持段落、列表、复选项、行内文本 | 只突出结论、风险和关键提醒 |
-| 表格 | table / colgroup / th / td | 背景为预设色名，支持合并、垂直对齐 | 中性表头、精确数据和行动矩阵 |
-| SVG 画板 | whiteboard type=svg | 可识别图元转成节点；字体重排，部分特性可能降级 | 用稳定的形状、路径和文本，云端导出后再看 |
-| Mermaid | whiteboard type=mermaid | 服务端布局，图例和文本需实际验收 | 此版本不引入新的 Mermaid 运行时 |
-| Sheet 图表 | 独立 sheets 图表命令 | 真正绑定数据范围，具有 chart ID | 与当前 SVG 数据快照明确区分 |
-| 原生封面 | docs +resource-update | 独立资源和裁切偏移 | 此版本不修改原生封面 |
-| HTML5 块 | html5-block + reference_map | 单文件，上限 500KB，高度 auto / viewport | 可选响应式概览；保持原生正文兜底 |
+| 能力 | 官方入口 | 本项目的用法与边界 |
+| :--- | :--- | :--- |
+| 原生正文 | XML 标题、段落、富文本、列表、复选项 | 保留可编辑和可搜索内容，原生字体与间距由客户端决定 |
+| 分栏 | `grid`、`column` | 用短两栏组织并列信息，列宽比例之和为 1，手机效果需实测 |
+| 高亮块 | `callout` | 突出结论或风险，避免嵌入不支持的复杂资源子块 |
+| 表格 | `table`、`th`、`td` | 中性表头、精确数据和同口径方案比较 |
+| SVG 画板 | `whiteboard type="svg"` | 自包含图元与文本，导入后检查转换节点和实际画面 |
+| Mermaid | `whiteboard type="mermaid"` | 平台提供该入口，本版本未增加 Mermaid 运行时 |
+| Sheet 图表 | 独立 Sheet 图表命令 | 具有数据源与图表对象，未集成到当前 SVG 编译流程 |
+| 原生封面 | `docs +resource-update` | 独立封面资源，当前版本不设置 |
+| HTML5 块 | `html5-block`、`reference_map` | 可选纯 KPI HTML，原生正文和数据明细仍然保留 |
+
+原生标签与颜色约束见 [官方 XML 语法](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-xml.md)。SVG 和 Mermaid 入口见 [官方画板处理指南](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-whiteboard.md)。
+
+真正的数据绑定需要创建 Sheet 图表对象并配置数据范围；它与正文中的 SVG 快照有不同的更新机制。[官方 Sheet 图表接口](https://github.com/larksuite/cli/blob/main/skills/lark-sheets/references/lark-sheets-chart.md)
+
+飞书原生封面也有独立的资源读取和更新入口，不能把正文画板称为原生封面。本项目不再在文档开头生成独立海报。[官方封面资源说明](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-resource-cover.md)
+
+## SVG 画布与节点高度
+
+官方白板说明指出：SVG 导入会把可识别的图形与文本转换成节点，文字会按画板字体重新布局。部分 SVG 特性会降级或不受支持，因此浏览器中的原图不能直接代表导入后的结果。[官方 SVG 解析与插入后审查说明](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-whiteboard.md)
+
+由此需要区分三件事：
+
+1. **根 SVG 的 `width`、`height` 和 `viewBox`。** 它们定义文件的尺寸与坐标视口。
+2. **真实图元与文字的边界。** 每个矩形、路径、文本及变换后的节点都有自己的位置和尺寸。
+3. **宿主最终呈现的画板高度。** 转换后的节点范围、文字重排和文档容器共同影响实际效果。
+
+以下是项目采用的工程约束：不能只把一张 1600×900 图的根 `viewBox` 改成 1600×600，就认定导入后的内容会变短。原来的背景矩形、节点坐标或文本仍可能伸到 900 高度，造成裁切、留白或节点边界不符合预期。根视口不等于转换后节点的真实高度；具体表现需要以目标客户端的实际结果为准。
+
+当前文档内数据图按 1600×600 排版，独立分享版按 1600×900 排版。KPI 为 1600×380 或 1600×720，工作流高度随内容调整。嵌入版去掉重复的标题、来源与解读区域，保留用于理解数据的图例、标签和读数。被移出的来源与解读由原生正文承接，完整数据在文末保留。
+
+KPI 画板容量为一至八项短指标。合法内容超出容量时，本项目在该节直接呈现完整原生表格；不生成该组画板，也不在文末重复同一组指标。第一个 KPI 采用这条回退路径时，构建不生成可选增强版。
+
+本地检查需要把文字边界转换到根 SVG 坐标系，核对所有可见节点是否落在画布范围内。仅检查未经变换的 `getBBox()`，可能误判带有分组变换的文字。云端仍需导出画板预览，对照字形、折行、节点高度和正文中的块间距。本地边界通过不能替代这一环节。
 
 ## 图表选择
 
-| 读者的问题 | 组件 | 编码规则 |
+| 读者的问题 | 组件 | 项目采用的编码规则 |
 | :--- | :--- | :--- |
-| 哪个更高，差多少 | 横向条形图 | 共同零基线，负数保留，直接显示数值 |
-| 随时间怎样变化 | 折线图 | 保留用户时间顺序，清晰数轴与原始读数 |
-| 整体由什么组成 | 环形图 | 非负、合计大于零；原值与百分比并列 |
-| 哪一段转化损失大 | 漏斗图 | 顺序非递增，矩形宽度与数值成正比 |
-| 距离目标还有多远 | 完成度条 | 0 至 100 的固定基线，明确百分比口径 |
-| 何时完成，当前在哪 | 时间轴 | 日期、状态与下一步同时呈现 |
+| 哪个更高，差多少 | 横向条形图 | 共同零基线，保留负数和直接读数 |
+| 随时间怎样变化 | 折线图 | 保留输入顺序，显示数轴与原始值 |
+| 整体由什么组成 | 环形图 | 非负且合计大于零，原值与百分比并列 |
+| 哪个阶段发生流失 | 漏斗图 | 后一阶段人数不大于前一阶段，宽度对应数值 |
+| 距离目标还有多远 | 完成度条 | 固定 0 至 100 基线，明确百分比口径 |
+| 何时完成，当前在哪 | 时间轴 | 日期、状态与后续任务同时呈现 |
 | 怎样取舍 | 决策矩阵 | 同一维度比较，附建议与理由 |
 
-避免截断纵轴的柱状图、3D 饼图、无共同口径的双轴、用装饰性渐变暗示数值差异。空白数据不补造成零；超出布局容量明确报错，要求拆图或调整单位。
+图示类型应由数据关系决定。多选访谈频次不能当作互斥占比，收入贡献不能直接等同于利润，漏斗形状也不能解释流失原因。图表文案需要保留这些推断边界。
 
-## 六套视觉语法
+项目避免用截断柱轴、3D 饼图或装饰性填色制造差异。空白数据不补造成零，超出文字容量时明确报错，要求拆图或调整单位。图形保真与业务判断正确是两项不同的检查。
 
-| 主题 | 开篇与节奏 | 适合任务 |
+## 六套白页语法
+
+| 主题 ID | 名称 | 局部视觉与沟通重点 |
 | :--- | :--- | :--- |
-| atelier-bone | 象牙纸、细金线、大字号与留白 | 管理层迅速决定下一步 |
-| grid-bureau | 蓝色重点、编号侧栏、基线与等宽读数 | 周期经营与精确比较 |
-| nocturne-teal | 深黑画板、电青状态点、网格 | 技术项目进展与风险同步 |
-| broadsheet | 报头双线、衬线、证据分栏 | 研究、洞察和事实边界 |
-| moxi-void | 墨团、宣纸、朱砂落款、宽留白 | 决策讨论与方案权衡 |
-| soundwave-wrapped | 粉色开场、电黄高光、波形 | 发布、活动和传播复盘 |
+| `atelier-bone` | 白金管理简报 | 细金线与预算读数，服务资源配置决策 |
+| `grid-bureau` | 蓝图经营复盘 | 蓝色重点与数字对齐，服务趋势和渠道比较 |
+| `nocturne-teal` | 青岚项目简报 | 深青状态点，服务进度、里程碑和依赖 |
+| `broadsheet` | 知见研究速递 | 报刊双线与砖红标记，服务证据和局限说明 |
+| `moxi-void` | 朱墨决策备忘 | 深墨文字与小印记，服务方案取舍 |
+| `soundwave-wrapped` | 玫红发布提案 | 玫红读数与短线，服务发布亮点和转化 |
 
-主题 HEX 用于 SVG 与 HTML。原生段落使用单独的色名映射。原生文档不会因此变成任意深色整页皮肤。原生画板字体重排为客户端字体，HTML 字体使用本地 CJK 兜底，不依赖外部字体下载。
+这些是 [HeiGe-Design 设定集](https://github.com/HeiGeAi/HeiGe-Design) 在飞书白页中的适配，沿用主题 ID，不复刻独立网页的大面积背景。HTML 使用本地中文字体兜底；画板经过飞书转换后，字体与布局仍须检查。
 
-## 官方资料
+## 资料与验收
 
-- [Docx XML 语法](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-xml.md)
-- [SVG / Mermaid 画板工作流](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-whiteboard.md)
-- [HTML5 与扩展块](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-xml-extended-blocks.md)
-- [HTML5 资源处理源码](https://github.com/larksuite/cli/blob/dbc1559411d74ef2f208259054a0712241ec9e38/shortcuts/doc/html5_block_resources.go)
-- [Sheet 图表接口](https://github.com/larksuite/cli/blob/main/skills/lark-sheets/references/lark-sheets-chart.md)
-- [原生封面资源](https://github.com/larksuite/cli/blob/main/skills/lark-doc/references/lark-doc-resource-cover.md)
-- [飞书流程图与 UML 帮助](https://www.feishu.cn/hc/zh-CN/articles/980918978289)
-- [HeiGe-Design 原创设定集](https://github.com/HeiGeAi/HeiGe-Design)
+除正文引用外，HTML 内容资源处理可继续查看 [官方 HTML5 资源处理源码](https://github.com/larksuite/cli/blob/dbc1559411d74ef2f208259054a0712241ec9e38/shortcuts/doc/html5_block_resources.go)，流程表达可参考 [飞书流程图与 UML 帮助](https://www.feishu.cn/hc/zh-CN/articles/980918978289)。前者固定到具体提交，其他 `main` 链接会随上游变化。
 
-能力研究与实测结果分开记录。云端通过创建接口不等于像素级保真；XML 回读、画板导出、网页交互、实体手机和 PDF 导出应分别验收。后两项没有执行时应明确写未验证。
+能力研究和验收结果分开记录。创建成功只说明接口接受了请求；XML 回读检查内容，画板导出检查转换后的视觉，浏览器测试检查本地交互。实体手机和 PDF 导出也各有独立的验证范围。
+
+设计 lint 只能检查规则，不评价信息是否突出、段落是否易读或整页是否好看。最终需要把图表放回真实文档里阅读和审看。具体执行范围与证据见 [验收记录](../visual-system/validation.md)。

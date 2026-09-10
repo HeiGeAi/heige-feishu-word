@@ -80,10 +80,10 @@ def compile_body(body, output_dir):
                 raise BodyValidationError(f'invalid SVG for {board_id}: '+ '; '.join(report.errors))
             write(f'boards/{board_id}.svg',svg+'\n','whiteboard_svg')
             board_ids.append(board_id)
-        if body['meta'].get('eyebrow'):
-            from .cover import render_cover_svg
-            cover=render_cover_svg(body,theme)
-            board('__overview',cover)
+        from .cover import render_metrics_svg_or_none
+        metrics=next((s for s in body['sections'] if s['type']=='metrics'),None)
+        cover=render_metrics_svg_or_none(metrics,theme) if metrics else None
+        if cover is not None:
             overview=render_overview_html(body)
             if len(overview.encode('utf-8'))>500_000:
                 raise BodyValidationError('HTML overview exceeds the 500KB Lark block limit')
@@ -91,11 +91,16 @@ def compile_body(body, output_dir):
             enhanced=xml.replace(f'<whiteboard type="svg">{cover}</whiteboard>', '<html5-block path="@./widgets/overview.html"/>',1)
             write('document.enhanced.xml',enhanced,'feishu_xml_optional_html')
         for section in body['sections']:
-            if section['type']=='whiteboard_workflow':
-                board(section['id'],render_workflow_svg(section,theme))
+            if section['type']=='metrics':
+                metric_svg=render_metrics_svg_or_none(section,theme)
+                if metric_svg is not None:
+                    board(section['id'],metric_svg)
+            elif section['type']=='whiteboard_workflow':
+                board(section['id'],render_workflow_svg(section,theme,embedded=True))
             elif section['type']=='chart':
                 from .charts import render_chart_svg
-                board(section['id'],render_chart_svg(section,theme))
+                board(section['id'],render_chart_svg(section,theme,embedded=True))
+                write(f'standalone/{section["id"]}.svg',render_chart_svg(section,theme)+'\n','standalone_chart_svg')
         manifest=dict(schema_version=body['schema_version'],generator='heige-feishu-word',
             title=body['meta']['title'],theme=theme['slug'],section_ids=[s['id'] for s in body['sections']],
             board_ids=board_ids,asset_count=0,artifacts=artifacts,

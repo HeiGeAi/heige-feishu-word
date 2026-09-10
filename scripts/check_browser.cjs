@@ -29,7 +29,10 @@ const {pathToFileURL}=require('node:url');
      missingImages:[...document.images].filter(i=>!i.complete||i.naturalWidth===0).map(i=>i.src),
      svgCount:document.querySelectorAll('svg').length,
      textOverflow:[...document.querySelectorAll('svg text')].flatMap(n=>{
-      const b=n.getBBox(),v=n.ownerSVGElement.viewBox.baseVal;
+      const local=n.getBBox(),v=n.ownerSVGElement.viewBox.baseVal;
+      const matrix=n.ownerSVGElement.getScreenCTM().inverse().multiply(n.getScreenCTM());
+      const points=[[local.x,local.y],[local.x+local.width,local.y],[local.x,local.y+local.height],[local.x+local.width,local.y+local.height]].map(([x,y])=>new DOMPoint(x,y).matrixTransform(matrix));
+      const b={x:Math.min(...points.map(p=>p.x)),y:Math.min(...points.map(p=>p.y)),width:Math.max(...points.map(p=>p.x))-Math.min(...points.map(p=>p.x)),height:Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y))};
       return b.x< -2||b.y< -2||b.x+b.width>v.width+2||b.y+b.height>v.height+2?[{text:n.textContent,x:b.x,y:b.y,w:b.width,h:b.height}]:[];
      })
     }));
@@ -55,7 +58,9 @@ const {pathToFileURL}=require('node:url');
   const enlarged=await dialog.locator('.dialog-art').evaluate(n=>n.getBoundingClientRect().width);
   reports.push({interaction:'enlarge SVG',pass:enlarged>before});
   await dialog.locator('[data-fit]').click();
-  reports.push({interaction:'fit SVG',pass:await dialog.locator('.dialog-art').evaluate(n=>n.getBoundingClientRect().width)===before});
+  reports.push({interaction:'fit SVG',pass:await dialog.locator('.dialog-scroll').evaluate(n=>{const s=getComputedStyle(n);return Math.abs(n.querySelector('.dialog-art').getBoundingClientRect().width-(n.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight)))<1;})});
+  await dialog.locator('[data-actual]').click();
+  reports.push({interaction:'restore original SVG size',pass:Math.abs(await dialog.locator('.dialog-art').evaluate(n=>n.getBoundingClientRect().width)-before)<1});
   await dialog.locator('[data-close]').click();
   reports.push({interaction:'close SVG dialog',pass:!await dialog.isVisible()});
   await svgTrigger.click();

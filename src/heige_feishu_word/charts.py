@@ -395,13 +395,24 @@ def _progress(section: Dict[str, Any], theme: Dict[str, Any]) -> List[str]:
     return result
 
 
-def render_chart_svg(section: Dict[str, Any], theme: Dict[str, Any]) -> str:
-    """Render one chart at 1600 by 900 with readable original values and sources."""
+def render_chart_svg(section: Dict[str, Any], theme: Dict[str, Any], *, embedded: bool = False) -> str:
+    """Render a standalone chart or a compact figure for a native document.
+
+    Embedded figures retain all chart data.  Their heading, insight and source
+    belong to the surrounding native document, rather than a duplicate slide.
+    The plot is translated without scaling so its geometry and type stay intact.
+    """
     validate_chart(section)
     visual = _theme(theme)
     renderer = {"bar": _bar, "line": _line_chart, "donut": _donut, "funnel": _funnel, "progress": _progress}[section["kind"]]
     # A wide exponent range prevents finite float inputs overflowing coordinates.
     with localcontext() as context:
         context.prec = 800
-        parts = _chrome(section, visual) + renderer(section, visual)
+        if embedded:
+            visual["canvas"] = "#FFFFFF"
+            parts = [_rect(0, 0, 1600, 600, "#FFFFFF"), '<g transform="translate(0 -185)">', *renderer(section, visual), "</g>"]
+        else:
+            parts = _chrome(section, visual) + renderer(section, visual)
+    if embedded:
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="600" viewBox="0 0 1600 600" font-family="Noto Sans SC, sans-serif">' + "".join(parts) + "</svg>"
     return '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Noto Sans SC, sans-serif">' + "".join(parts) + "</svg>"
