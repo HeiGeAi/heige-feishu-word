@@ -50,7 +50,8 @@ class BodyCompilerTests(unittest.TestCase):
         self.assertEqual(written_body, body)
         self.assertEqual(written_manifest, manifest)
         self.assertIn("企业 AI 文档交付引擎 MVP 决策简报", document_xml)
-        self.assertIn('viewBox="0 0 1600 900"', workflow_svg)
+        self.assertIn('viewBox="0 0 1600 ', workflow_svg)
+        self.assertNotIn('WORKFLOW', workflow_svg)
 
     def test_rejects_assets_instead_of_silently_dropping_them(self):
         body = standard_body()

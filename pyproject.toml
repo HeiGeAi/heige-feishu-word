@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "heige-feishu-word"
-version = "0.1.0a0"
+version = "0.2.0a2"
 description = "Compile a structured Document Body into Feishu delivery artifacts."
 readme = "README.md"
 license = "MIT"

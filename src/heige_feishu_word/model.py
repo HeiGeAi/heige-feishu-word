@@ -14,6 +14,10 @@ SUPPORTED_SECTION_TYPES = frozenset(
         "grid",
         "whiteboard_workflow",
         "actions",
+        "prose",
+        "chart",
+        "timeline",
+        "comparison",
     }
 )
 
@@ -24,7 +28,7 @@ class BodyValidationError(ValueError):
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 ROOT_KEYS = frozenset({"schema_version", "meta", "theme", "sections", "assets"})
-META_KEYS = frozenset({"title", "subtitle", "audience", "status", "reading_time"})
+META_KEYS = frozenset({"title", "subtitle", "audience", "status", "reading_time", "eyebrow", "disclaimer"})
 SECTION_KEYS = {
     "callout": frozenset({"id", "type", "title", "tone", "body"}),
     "metrics": frozenset({"id", "type", "title", "items"}),
@@ -32,6 +36,10 @@ SECTION_KEYS = {
     "grid": frozenset({"id", "type", "title", "items"}),
     "whiteboard_workflow": frozenset({"id", "type", "title", "steps"}),
     "actions": frozenset({"id", "type", "title", "items"}),
+    "prose": frozenset({"id", "type", "title", "paragraphs"}),
+    "chart": frozenset({"id", "type", "title", "kind", "labels", "series", "unit", "source", "insight"}),
+    "timeline": frozenset({"id", "type", "title", "items"}),
+    "comparison": frozenset({"id", "type", "title", "options", "criteria", "recommendation"}),
 }
 
 
@@ -44,6 +52,8 @@ def _reject_unknown_keys(value: Dict[str, Any], allowed: frozenset, path: str) -
 def _required_text(value: Any, path: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise BodyValidationError(f"{path} must be a non-empty string")
+    if any(not (c in "\t\n\r" or 0x20 <= ord(c) <= 0xD7FF or 0xE000 <= ord(c) <= 0xFFFD or 0x10000 <= ord(c) <= 0x10FFFF) for c in value):
+        raise BodyValidationError(f"{path} contains a character XML cannot represent")
     return value
 
 
@@ -70,10 +80,54 @@ def _validate_section(section: Dict[str, Any], index: int) -> None:
     _reject_unknown_keys(section, SECTION_KEYS[section_type], path)
     _required_text(section.get("title"), f"{path}.title")
 
+    if section_type == "prose":
+        for i, paragraph in enumerate(_required_list(section.get("paragraphs"), f"{path}.paragraphs")):
+            _required_text(paragraph, f"{path}.paragraphs[{i}]")
+        return
+
+    if section_type == "chart":
+        from .charts import validate_chart
+        try:
+            validate_chart(section, path)
+        except ValueError as exc:
+            raise BodyValidationError(str(exc)) from exc
+        return
+
+    if section_type == "timeline":
+        items = _required_list(section.get("items"), f"{path}.items")
+        if len(items) > 8:
+            raise BodyValidationError(f"{path}.items supports at most eight milestones")
+        for i, item in enumerate(items):
+            _validate_item(item, path=f"{path}.items[{i}]", required_keys=frozenset({"date", "title", "body", "status"}))
+            if item["status"] not in {"done", "active", "planned", "risk"}:
+                raise BodyValidationError(f"{path}.items[{i}].status is unsupported")
+        return
+
+    if section_type == "comparison":
+        options = _required_list(section.get("options"), f"{path}.options")
+        if not 2 <= len(options) <= 3:
+            raise BodyValidationError(f"{path}.options requires two or three alternatives")
+        for i, option in enumerate(options):
+            _required_text(option, f"{path}.options[{i}]")
+        if len(set(options)) != len(options):
+            raise BodyValidationError(f"{path}.options must be unique")
+        for i, row in enumerate(_required_list(section.get("criteria"), f"{path}.criteria")):
+            if not isinstance(row, dict):
+                raise BodyValidationError(f"{path}.criteria[{i}] must be an object")
+            _reject_unknown_keys(row, frozenset({"label", "values"}), f"{path}.criteria[{i}]")
+            _required_text(row.get("label"), f"{path}.criteria[{i}].label")
+            values = _required_list(row.get("values"), f"{path}.criteria[{i}].values")
+            if len(values) != len(options):
+                raise BodyValidationError(f"{path}.criteria[{i}].values must match options")
+            for v in values:
+                _required_text(v, f"{path}.criteria[{i}].values")
+        _required_text(section.get("recommendation"), f"{path}.recommendation")
+        return
+
     if section_type == "callout":
         _required_text(section.get("body"), f"{path}.body")
         tone = section.get("tone", "info")
-        if tone not in {"success", "warning", "risk", "info"}:
+        if not isinstance(tone, str) or tone not in {"success", "warning", "risk", "info"}:
             raise BodyValidationError(f"{path}.tone is unsupported: {tone!r}")
         return
 
@@ -137,15 +191,15 @@ def validate_body(body: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(body, dict):
         raise BodyValidationError("body must be an object")
     _reject_unknown_keys(body, ROOT_KEYS, "body")
-    if body.get("schema_version") != "0.1":
-        raise BodyValidationError("schema_version must be 0.1")
+    if body.get("schema_version") not in ("0.1", "0.2"):
+        raise BodyValidationError("schema_version must be 0.1 or 0.2")
 
     meta = body.get("meta")
     if not isinstance(meta, dict):
         raise BodyValidationError("meta must be an object")
     _reject_unknown_keys(meta, META_KEYS, "meta")
     _required_text(meta.get("title"), "meta.title")
-    for optional_key in ("subtitle", "status", "reading_time"):
+    for optional_key in ("subtitle", "status", "reading_time", "eyebrow", "disclaimer"):
         if optional_key in meta:
             _required_text(meta[optional_key], f"meta.{optional_key}")
     if "audience" in meta:
@@ -155,6 +209,11 @@ def validate_body(body: Dict[str, Any]) -> Dict[str, Any]:
 
     if "theme" in body:
         _required_text(body["theme"], "theme")
+    from .themes import get_theme
+    try:
+        get_theme(body.get("theme"))
+    except ValueError as exc:
+        raise BodyValidationError(str(exc)) from exc
 
     sections = body.get("sections")
     if not isinstance(sections, list) or not sections:

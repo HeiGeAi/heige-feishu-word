@@ -16,7 +16,7 @@ class ReleaseMetadataTests(unittest.TestCase):
             r'^__version__ = "([^"]+)"$', package_init, re.MULTILINE
         ).group(1)
 
-        self.assertRegex(version, r"^0\.1\.0a\d+$")
+        self.assertRegex(version, r"^\d+\.\d+\.\d+a\d+$")
         self.assertEqual(package_version, version)
         self.assertIn(f"`v{version}`", readme)
 
