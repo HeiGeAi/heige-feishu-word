@@ -73,5 +73,11 @@ class DocumentSurfaceTests(unittest.TestCase):
             theme=get_theme(item['theme'])
             for role in ('ink','muted','primary'):
                 self.assertGreaterEqual(1.05/(luminance(theme[role])+.05),4.5,(item['slug'],role))
+            self.assertEqual(len(theme['palette']),len(theme['tints']))
+            for accent,tint in zip(theme['palette'],theme['tints']):
+                for text_color in (accent,theme['ink'],theme['muted']):
+                    ratio=(luminance(tint)+.05)/(luminance(text_color)+.05)
+                    self.assertGreaterEqual(ratio,4.5,(item['slug'],text_color,tint))
+            self.assertNotIn('yellow',theme['native_accents'][:2])
 
 if __name__=='__main__':unittest.main()

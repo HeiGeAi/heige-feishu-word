@@ -1,58 +1,60 @@
-"""Portable visual tokens, adapted from HeiGe-Design (MIT).
+"""Document color systems adapted from HeiGe-Design (MIT).
 
-Native Docx uses named colors and its own fonts. Exact tokens apply to SVG and
-HTML; the mapping is explicit rather than promising CSS styling of native blocks.
+White is the shared host surface. Saturated accents, paired tints, and explicit
+native color names keep SVG, HTML, and native Docx in the same color family.
 """
-
 from copy import deepcopy
 
 
-def _theme(slug, name, layout, colors, native, description, display):
-    canvas, surface, ink, muted, hairline, primary, secondary = colors
-    return dict(slug=slug, name=name, layout=layout, canvas=canvas,
-                surface=surface, ink=ink, muted=muted, hairline=hairline,
-                primary=primary, secondary=secondary,
-                palette=[primary, ink, muted, secondary, hairline],
-                native=native, description=description, display=display)
+def _theme(slug, name, layout, palette, tints, secondary, native,
+           native_secondary, native_accents, description, display):
+    return dict(slug=slug, name=name, layout=layout, canvas="#ffffff",
+                surface=tints[0], ink="#202B3D", muted="#566172",
+                hairline="#DFE5EE", primary=palette[0], secondary=secondary,
+                palette=palette, tints=tints, native=native,
+                native_secondary=native_secondary, native_accents=native_accents,
+                description=description, display=display)
 
 
-# Feishu documents have a white reading surface. These are document adaptations
-# of the original design systems, not reproductions of their standalone pages.
+# Accent roles are categorical. Only explicit callout/timeline status fields
+# carry success, warning, or risk meanings. A color alone never implies a KPI trend.
 THEMES = {
-    "atelier-bone": _theme("atelier-bone", "白金管理简报", "editorial",
-        ("#ffffff", "#faf9f6", "#252a34", "#68707c", "#e6e8ed", "#8b6d37", "#65563e"),
-        "orange", "白纸、细金线、克制留白。先呈现判断，再展开证据。", "sans"),
-    "grid-bureau": _theme("grid-bureau", "蓝图经营复盘", "ledger",
-        ("#ffffff", "#f7f9fc", "#242b37", "#647084", "#e6eaf0", "#2757d6", "#516b9b"),
-        "blue", "白色记录页、蓝色读数、精确对齐，适合周期复盘。", "sans"),
-    "nocturne-teal": _theme("nocturne-teal", "青岚项目简报", "nocturne",
-        ("#ffffff", "#f6faf9", "#263438", "#65777b", "#e2eae8", "#087f73", "#4b9188"),
-        "green", "白页、电青收敛为深青，细线组织进度与风险。", "sans"),
-    "broadsheet": _theme("broadsheet", "知见研究速递", "press",
-        ("#ffffff", "#faf8f6", "#2c2b29", "#716d67", "#e8e4df", "#a74032", "#77665a"),
-        "red", "白色报页、细双线、小面积砖红，证据优先。", "serif"),
-    "moxi-void": _theme("moxi-void", "朱墨决策备忘", "ink",
-        ("#ffffff", "#faf9f7", "#30302e", "#72716d", "#e5e4e1", "#494944", "#b34b3f"),
-        "gray", "白纸深墨、朱砂小印、同口径比较，留白服务阅读。", "serif"),
-    "soundwave-wrapped": _theme("soundwave-wrapped", "玫红发布提案", "festival",
-        ("#ffffff", "#fcf8fa", "#332b32", "#786b77", "#ece4e9", "#b52664", "#80647d"),
-        "purple", "白页与少量玫红标记，声浪缩为短线，突出发布重点。", "sans"),
-    "editorial-forest": _theme("editorial-forest", "森林编辑部", "editorial",
-        ("#ffffff", "#f7f9f5", "#2d3a30", "#667366", "#e3e8df", "#43684b", "#866e57"),
-        "green", "兼容原有主题标识，使用白页与森林绿。", "serif"),
+    'atelier-bone': _theme('atelier-bone', '海蓝鎏金简报', 'editorial',
+        ['#19466A', '#97600B', '#08756A', '#AC345C', '#6848A0', '#854C32', '#60691E', '#3155A6'],
+        ['#EAF2FF', '#FFF0C9', '#E5F5EE', '#FCE9F0', '#F0EAFB', '#FBEEE4', '#F0F3DA', '#E8EEFF'],
+        '#D7A236', 'blue', 'orange', ['blue', 'orange', 'green', 'purple'],
+        '海军蓝主读数与香槟金辅助，配松石绿和莓红，适合预算与决策。', 'sans'),
+    'grid-bureau': _theme('grid-bureau', '蓝橙经营复盘', 'ledger',
+        ['#2454CE', '#B4480B', '#08756A', '#7143AD', '#B62C4A', '#4147A5', '#667017', '#855041'],
+        ['#EAF0FF', '#FFEFD9', '#E3F5EE', '#F1E8FC', '#FCE8EE', '#ECEBFF', '#F0F4D7', '#F9EBE5'],
+        '#E57526', 'blue', 'orange', ['blue', 'orange', 'green', 'purple'],
+        '钴蓝与橘色比较实际和目标，青绿与紫色区分渠道，强化数据辨识。', 'sans'),
+    'nocturne-teal': _theme('nocturne-teal', '孔雀琥珀简报', 'nocturne',
+        ['#006F6B', '#995A05', '#2C55B5', '#AF3164', '#347434', '#7143AD', '#A23B24', '#4F5C8C'],
+        ['#DDF5EE', '#FFF0C4', '#E8EFFF', '#FCE8F0', '#E8F5DE', '#F0E8FC', '#FFEAE1', '#EBEEF9'],
+        '#D99415', 'green', 'orange', ['green', 'orange', 'blue', 'purple'],
+        '孔雀青搭配琥珀黄、宝蓝和莓色，将项目阶段与读数分层。', 'sans'),
+    'broadsheet': _theme('broadsheet', '莓果研究速递', 'press',
+        ['#B32362', '#493FB3', '#1A629F', '#16755A', '#A6530B', '#804496', '#AB3B35', '#586C24'],
+        ['#FDE7F0', '#EDEAFF', '#E5F1FF', '#E3F6EB', '#FFF0D9', '#F6E9FA', '#FFEAE7', '#EDF3DA'],
+        '#5950C8', 'red', 'purple', ['red', 'purple', 'blue', 'green'],
+        '莓红与靛蓝交替组织证据，辅以湖蓝与翡翠绿，形成清晰的研究层次。', 'serif'),
+    'moxi-void': _theme('moxi-void', '朱砂石青备忘', 'ink',
+        ['#B5342C', '#176C83', '#5C6D24', '#9C590E', '#77449E', '#246455', '#A3326C', '#3656A0'],
+        ['#FFE8E1', '#DFF2F6', '#EDF3D7', '#FFF0D4', '#F3E8FB', '#E1F3E9', '#FBE7F2', '#E8EFFF'],
+        '#238FA1', 'red', 'blue', ['red', 'blue', 'green', 'orange'],
+        '朱砂与石青形成方案对照，竹青和赭金补充条件与行动。', 'serif'),
+    'soundwave-wrapped': _theme('soundwave-wrapped', '洋红明黄提案', 'festival',
+        ['#B81769', '#855D00', '#3452C4', '#08756A', '#B53B24', '#7143AD', '#236F35', '#A33884'],
+        ['#FFE5F1', '#FFEDA0', '#E8EDFF', '#DFF5EC', '#FFE9DD', '#F2E6FF', '#E5F5DC', '#FBE8F6'],
+        '#F3CC32', 'purple', 'blue', ['purple', 'blue', 'orange', 'green'],
+        '洋红主读数、明黄浅色面与宝蓝辅助，呈现发布节奏和转化层次。', 'sans'),
+    'editorial-forest': _theme('editorial-forest', '森林编辑部', 'editorial',
+        ['#356342', '#935715', '#315E8C', '#8B3F65', '#5E4A92', '#686521', '#256D69', '#994830'],
+        ['#EAF3E6', '#FFF0DA', '#EAF1FA', '#F9EAF2', '#EEEAF7', '#F2F2DC', '#E4F4EF', '#FBEDE5'],
+        '#BC862E', 'green', 'orange', ['green', 'orange', 'blue', 'purple'],
+        '白页上的森林绿、麦金、湖蓝与浆果，兼容原有主题标识。', 'serif'),
 }
-
-_DATA_PALETTES = {
-    "atelier-bone": ["#8b6d37", "#738799", "#6e8191", "#c1ac88", "#758579", "#a88879", "#8c8997", "#afb4ad"],
-    "grid-bureau": ["#2757d6", "#6f8dad", "#536b8e", "#869ea7", "#8c96ba", "#657a91", "#b4becb", "#777f99"],
-    "nocturne-teal": ["#087f73", "#608f85", "#527e89", "#88a8b8", "#668f7c", "#abbcad", "#627593", "#839bab"],
-    "broadsheet": ["#a74032", "#9c7e66", "#7b8b95", "#a78b81", "#8e967e", "#a797b1", "#687683", "#b5b3a3"],
-    "moxi-void": ["#494944", "#808078", "#7c8883", "#a99b8e", "#727c89", "#b9b9b1", "#8c8a80", "#a5b2ab"],
-    "soundwave-wrapped": ["#b52664", "#b36e8b", "#8d829d", "#c0b4ce", "#927d85", "#bf909a", "#899ca8", "#a1ada7"],
-    "editorial-forest": ["#43684b", "#a2b59b", "#718680", "#ac957e", "#73849b", "#9d9296", "#9eaa91", "#747e70"],
-}
-for _slug, _colors in _DATA_PALETTES.items():
-    THEMES[_slug]["palette"] = _colors
 
 
 def get_theme(slug=None):

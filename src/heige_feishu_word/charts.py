@@ -19,7 +19,7 @@ _KINDS = {"bar": "横向对比", "line": "趋势变化", "donut": "构成占比"
 _SERIES_LIMIT = {"bar": 2, "line": 3, "donut": 1, "funnel": 1, "progress": 1}
 _COLORS = ("canvas", "surface", "ink", "muted", "hairline", "primary", "secondary")
 _DEFAULT_THEME = {
-    "canvas": "#F4F0E8", "surface": "#FFFFFF", "ink": "#18332E",
+    "canvas": "#FFFFFF", "surface": "#FFFFFF", "ink": "#18332E",
     "muted": "#53665F", "hairline": "#C9D3CC", "primary": "#285A48",
     "secondary": "#C75A39", "palette": ["#285A48", "#C75A39", "#47748C", "#A67B35", "#77518A", "#318383", "#A24765", "#687533"],
     "slug": "editorial", "layout": "editorial",
@@ -192,6 +192,13 @@ def _theme(theme: Dict[str, Any]) -> Dict[str, Any]:
     palette = result["palette"]
     if not isinstance(palette, (list, tuple)) or not palette or any(not isinstance(color, str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", color) for color in palette):
         raise ValueError("theme.palette must contain six-digit hexadecimal colors")
+    # Older custom themes need not supply the new token. Derive a pale partner
+    # from validated colors without mutating their palette or using SVG opacity.
+    if "tints" not in theme:
+        result["tints"] = ["#" + "".join(f"{round(int(color[i:i+2], 16) * .1 + 255 * .9):02x}" for i in (1, 3, 5)) for color in palette]
+    tints = result["tints"]
+    if not isinstance(tints, (list, tuple)) or not tints or any(not isinstance(color, str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", color) for color in tints):
+        raise ValueError("theme.tints must contain six-digit hexadecimal colors")
     return result
 
 
@@ -235,7 +242,7 @@ def _series_heading(section: Dict[str, Any], theme: Dict[str, Any]) -> str:
     else:
         for index, item in enumerate(section["series"]):
             x = 70 + 460 * index
-            result += [_rect(x, 203, 14, 21, theme["palette"][index % len(theme["palette"])]), _text(item["name"], x + 26, 223, 26, theme["ink"], weight=700)]
+            result += [_rect(x - 10, 193, 412, 39, theme["tints"][index % len(theme["tints"])]), _rect(x, 203, 14, 21, theme["palette"][index % len(theme["palette"])]), _text(item["name"], x + 26, 223, 26, theme["ink"], weight=700)]
     if unit:
         result.append(_text(f"单位：{unit}", 1530, 222, 25, theme["muted"], anchor="end"))
     return "".join(result)
@@ -259,8 +266,9 @@ def _bar(section: Dict[str, Any], theme: Dict[str, Any]) -> List[str]:
         for j, values in enumerate(numbers):
             y = cy - (len(series) * bar_height + (len(series) - 1) * 3) / 2 + j * (bar_height + 3)
             end = plot_left + float((values[index] - low) / span) * plot_width
-            color = theme["palette"][j % len(theme["palette"])]
-            result.append(_rect(min(baseline, end), y, abs(end - baseline), bar_height, color))
+            color_index = index if len(series) == 1 else j
+            color = theme["palette"][color_index % len(theme["palette"])]
+            result.append(_rect(min(baseline, end), y, abs(end - baseline), bar_height, color, id=f"data-bar-{index}-{j}"))
             result.append(_rect(1100, y + bar_height / 2 - 5, 10, 10, color))
             result.append(_text(_display(series[j]["values"][index]), 1510, y + bar_height / 2 + 8, 26, theme["ink"], weight=700, anchor="end"))
     result += [_text("0", baseline, 739, 25, theme["muted"], anchor="middle")]
@@ -306,6 +314,8 @@ def _line_chart(section: Dict[str, Any], theme: Dict[str, Any]) -> List[str]:
             raise ValueError("chart.labels are too long for readable line-chart columns; use fewer points or shorten labels. No label was truncated.")
         result.append(_text(label, x, plot_bottom + 40, 26, theme["ink"], anchor="middle", width=cell - 12, line_height=30))
     result.append(_line(70, table_top - 12, 1530, table_top - 12, theme["hairline"]))
+    for j in range(len(series)):
+        result.append(_rect(40, table_top + j * table_row - 4, 292, table_row, theme["tints"][j % len(theme["tints"])]))
     for j, item in enumerate(series):
         y = table_top + j * table_row
         color = theme["palette"][j % len(theme["palette"])]

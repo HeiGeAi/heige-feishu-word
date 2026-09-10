@@ -163,11 +163,16 @@ def _flow_lines(text: str, width: float, path: str, limit: int) -> List[str]:
 
 def _embedded_workflow_svg(steps: List[Dict[str, Any]], theme) -> str:
     from .themes import get_theme
+    from .charts import _theme as chart_theme
 
     visual = theme if theme is not None else get_theme()
     for key in ("surface", "ink", "hairline", "primary"):
         if not isinstance(visual.get(key), str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", visual[key]):
             raise BodyValidationError(f"theme.{key} must be a six-digit hexadecimal color")
+    try:
+        visual = chart_theme(visual)
+    except ValueError as exc:
+        raise BodyValidationError(str(exc)) from exc
     ink, primary, hairline = visual["ink"], visual["primary"], visual["hairline"]
     columns = len(steps) if len(steps) <= 4 else 3
     gap, margin = 40, 48
@@ -196,22 +201,26 @@ def _embedded_workflow_svg(steps: List[Dict[str, Any]], theme) -> str:
             index = start + column
             x = margin + column * (width + gap)
             title, description = prepared[index]
+            color = visual["palette"][index % len(visual["palette"])]
+            tint = visual["tints"][index % len(visual["tints"])]
             parts += [f'<g id="workflow-step-{index+1}">',
-                      f'<circle cx="{x+20:g}" cy="{top+24:g}" r="20" fill="{visual["surface"]}" stroke="{primary}" stroke-width="1.5"/>',
-                      f'<text x="{x+20:g}" y="{top+33:g}" text-anchor="middle" font-size="26" font-weight="600" fill="{ink}">{index+1}</text>',
+                      f'<rect x="{x-8:g}" y="{top-12:g}" width="{width+16:g}" height="{row_height+16:g}" fill="{tint}"/>',
+                      f'<rect x="{x+58:g}" y="{top-2:g}" width="64" height="3" fill="{color}"/>',
+                      f'<circle cx="{x+20:g}" cy="{top+24:g}" r="20" fill="#FFFFFF" stroke="{color}" stroke-width="2"/>',
+                      f'<text x="{x+20:g}" y="{top+33:g}" text-anchor="middle" font-size="26" font-weight="600" fill="{color}">{index+1}</text>',
                       _text_lines(title, x=x+58, y=top+34, font_size=32, fill=ink, line_height=40, font_weight=600),
                       _text_lines(description, x=x, y=top+title_lines*40+48, font_size=28, fill=ink, line_height=36),
                       '</g>']
             if column + 1 < count:
-                left, right, y = x + width + 8, x + width + gap - 8, top + 24
-                parts += [f'<line x1="{left:g}" y1="{y:g}" x2="{right:g}" y2="{y:g}" stroke="{hairline}" stroke-width="2"/>',
-                          f'<polyline points="{right-5:g},{y-5:g} {right:g},{y:g} {right-5:g},{y+5:g}" fill="none" stroke="{primary}" stroke-width="1.5"/>']
+                left, right, y = x + width + 10, x + width + gap - 12, top + 24
+                parts += [f'<line x1="{left:g}" y1="{y:g}" x2="{right:g}" y2="{y:g}" stroke="{color}" stroke-width="2"/>',
+                          f'<polyline points="{right-6:g},{y-6:g} {right:g},{y:g} {right-6:g},{y+6:g}" fill="none" stroke="{color}" stroke-width="2"/>']
         if row_index + 1 < len(row_specs):
             next_top = row_specs[row_index+1][1]
             middle_y = top + row_height + 32
-            points = f"1562,{top+24:g} 1576,{top+24:g} 1576,{middle_y:g} 24,{middle_y:g} 24,{next_top+24:g} 44,{next_top+24:g}"
+            points = f"1562,{top+24:g} 1576,{top+24:g} 1576,{middle_y:g} 24,{middle_y:g} 24,{next_top+24:g} 36,{next_top+24:g}"
             parts += [f'<polyline points="{points}" fill="none" stroke="{hairline}" stroke-width="2"/>',
-                      f'<polyline points="39,{next_top+19:g} 44,{next_top+24:g} 39,{next_top+29:g}" fill="none" stroke="{primary}" stroke-width="1.5"/>']
+                      f'<polyline points="30,{next_top+18:g} 36,{next_top+24:g} 30,{next_top+30:g}" fill="none" stroke="{primary}" stroke-width="2"/>']
     return "".join(parts) + "</svg>"
 
 

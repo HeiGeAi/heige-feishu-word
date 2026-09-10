@@ -15,8 +15,8 @@ STATUS_LABELS = {"done": "已完成", "active": "进行中", "planned": "待开�
 def _e(value: Any) -> str:
     return escape(str(value), quote=False).replace("\n", "<br/>")
 
-def _table(columns, rows):
-    head = ''.join(f'<th background-color="light-gray"><p><b>{_e(c)}</b></p></th>' for c in columns)
+def _table(columns, rows, color='gray'):
+    head = ''.join(f'<th background-color="light-{color}"><p><b><span text-color="{color}">{_e(c)}</span></b></p></th>' for c in columns)
     content = ''.join('<tr>'+''.join(f'<td vertical-align="top"><p>{_e(c)}</p></td>' for c in row)+'</tr>' for row in rows)
     return f'<table><thead><tr>{head}</tr></thead><tbody>{content}</tbody></table>'
 
@@ -31,9 +31,9 @@ def _grids(items, render, size=2):
         result.append('<grid>'+''.join(f'<column width-ratio="{ratios[i]}">{render(item)}</column>' for i,item in enumerate(row))+'</grid>')
     return ''.join(result)
 
-def _render_section(section, theme):
+def _render_section(section, theme, section_color=None):
     kind = section['type']
-    color = theme['native']
+    color = section_color or theme['native']
     if kind == 'callout':
         tone = section.get('tone', 'info')
         hue, mark, label = {'info': (color, '💡', '要点'), 'success': ('green', '✅', '结论'),
@@ -45,16 +45,17 @@ def _render_section(section, theme):
         from .cover import render_metrics_svg_or_none
         svg = render_metrics_svg_or_none(section,theme)
         if svg is None:
-            return _table(['指标','读数','口径与说明'], [[i['label'],i['value'],i['note']] for i in section['items']])
+            return _table(['指标','读数','口径与说明'], [[i['label'],i['value'],i['note']] for i in section['items']], color)
         return f'<whiteboard type="svg">{svg}</whiteboard>'
     if kind == 'grid':
-        return _grids(section['items'], lambda item: f'<p><b>{_e(item["title"])}</b></p><p>{_e(item["body"])}</p>', 2)
+        return _grids(section['items'], lambda item: f'<p><b><span text-color="{color}">{_e(item["title"])}</span></b></p><p>{_e(item["body"])}</p>', 2)
     if kind == 'table':
-        return _table(section['columns'], section['rows'])
+        return _table(section['columns'], section['rows'], color)
     if kind == 'comparison':
-        return _table(['评估维度']+section['options'], [[r['label']]+r['values'] for r in section['criteria']])+f'<p><b>建议：</b>{_e(section["recommendation"])}</p>'
+        return _table(['评估维度']+section['options'], [[r['label']]+r['values'] for r in section['criteria']], color)+f'<p><b>建议：</b>{_e(section["recommendation"])}</p>'
     if kind == 'timeline':
-        return ''.join(f'<p><span background-color="light-{color}">{_e(i["date"])}</span>　<b>{_e(i["title"])}</b>（{STATUS_LABELS[i["status"]]}）</p><p>{_e(i["body"])}</p>' for i in section['items'])
+        hues = {'done':'green','active':'blue','planned':'gray','risk':'red'}
+        return ''.join(f'<p><span background-color="light-{hues[i["status"]]}">{_e(i["date"])}</span>　<b>{_e(i["title"])}</b>（{STATUS_LABELS[i["status"]]}）</p><p>{_e(i["body"])}</p>' for i in section['items'])
     if kind == 'whiteboard_workflow':
         return f'<whiteboard type="svg">{render_workflow_svg(section, theme, embedded=True)}</whiteboard>'
     if kind == 'chart':
@@ -72,10 +73,10 @@ def _render_details(sections, theme):
             from .cover import render_metrics_svg_or_none
             if render_metrics_svg_or_none(section,theme) is None:
                 continue
-            content = _table(['指标','读数','口径与说明'], [[i['label'],i['value'],i['note']] for i in section['items']])
+            content = _table(['指标','读数','口径与说明'], [[i['label'],i['value'],i['note']] for i in section['items']], theme['native'])
         elif kind == 'chart':
             from .charts import chart_table
-            content = _table(*chart_table(section))
+            content = _table(*chart_table(section), color=theme['native'])
         elif kind == 'whiteboard_workflow':
             content = ''.join(f'<p><b>{n+1}．{_e(step["title"])}</b>　{_e(step["description"])}</p>' for n,step in enumerate(section['steps']))
         else:
@@ -98,9 +99,11 @@ def render_document_xml(body: Dict[str, Any]) -> str:
     if meta.get('audience'):
         blocks.append(f'<p><span text-color="gray">适用读者：{_e("、".join(meta["audience"]))}</span></p>')
     blocks.append('<hr/>')
-    for section in body['sections']:
-        blocks.append(f'<h1 seq="auto">{_e(section["title"])}</h1>')
-        blocks.append(_render_section(section, theme))
+    accents = theme['native_accents'][:2]
+    for index, section in enumerate(body['sections']):
+        color = accents[index % len(accents)]
+        blocks.append(f'<h1 seq="auto"><span text-color="{color}">{_e(section["title"])}</span></h1>')
+        blocks.append(_render_section(section, theme, color))
     details = _render_details(body['sections'], theme)
     if details:
         blocks.append(details)

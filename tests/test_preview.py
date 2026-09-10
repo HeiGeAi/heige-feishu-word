@@ -7,6 +7,7 @@ import unittest
 from xml.etree import ElementTree as ET
 
 from heige_feishu_word.presets import PRESETS
+from heige_feishu_word.themes import get_theme
 from heige_feishu_word.preview import (
     render_gallery_html,
     render_overview_html,
@@ -219,6 +220,63 @@ class PreviewTests(unittest.TestCase):
         self.assertIn("prefers-reduced-motion:reduce", html)
         self.assertNotIn("innerHTML", html)
 
+    def test_document_accents_alternate_two_colors_and_use_registered_palette_tokens(self):
+        for preset in PRESETS.values():
+            body = preset["body"]
+            theme = get_theme(body["theme"])
+            html = render_preview_html(body)
+            document = _Document(html)
+            section_colors = [attrs["data-color"] for tag, attrs in document.tags if tag == "section"]
+            self.assertEqual(section_colors, [str(index % 2) for index in range(len(body["sections"]))])
+            self.assertEqual(sum(attrs.get("class") == "header-rule" for _, attrs in document.tags), 1)
+            for index in range(8):
+                self.assertIn("--color-%d:%s" % (index, theme["palette"][index]), html)
+                self.assertIn("--tint-%d:%s" % (index, theme["tints"][index]), html)
+            self.assertIn("background:var(--secondary)", html)
+            self.assertNotIn("linear-gradient", html)
+
+    def test_eight_metric_overview_uses_four_readable_pairs_without_losing_items(self):
+        def luminance(color):
+            components = [int(color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
+            linear = [value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4 for value in components]
+            return sum(value * weight for value, weight in zip(linear, (0.2126, 0.7152, 0.0722)))
+
+        def contrast(first, second):
+            light, dark = sorted((luminance(first), luminance(second)), reverse=True)
+            return (light + 0.05) / (dark + 0.05)
+
+        for preset in PRESETS.values():
+            body = deepcopy(preset["body"])
+            items = [{"label": "指标 %d" % index, "value": str(index * 10), "note": "指标 %d 的口径" % index} for index in range(1, 9)]
+            body["sections"] = [{"id": "eight", "type": "metrics", "title": "八项指标", "items": items}]
+            html = render_overview_html(body)
+            document = _Document(html)
+            colors = [attrs["data-color"] for tag, attrs in document.tags if tag == "article"]
+            self.assertEqual(colors, [str(index % 4) for index in range(8)])
+            self.assertIn(".overview-metric:first-child{background:var(--primary);color:#fff}", html)
+            self.assertIn(".overview-metric:first-child:before{background:var(--secondary)}", html)
+            theme = get_theme(body["theme"])
+            self.assertGreaterEqual(contrast(theme["primary"], "#ffffff"), 4.5)
+            for index in range(4):
+                self.assertGreaterEqual(contrast(theme["palette"][index], theme["tints"][index]), 4.5)
+                self.assertGreaterEqual(contrast(theme["ink"], theme["tints"][index]), 4.5)
+            for item in items:
+                for text in item.values():
+                    self.assertIn(text, document.text)
+
+    def test_semantic_callout_tones_survive_theme_and_accent_changes(self):
+        body = deepcopy(PRESETS["launch-story"]["body"])
+        tones = {"info": "要点", "success": "结论", "warning": "关注", "risk": "风险"}
+        body["sections"] = [
+            {"id": tone, "type": "callout", "title": "观察 " + tone, "tone": tone, "body": "完整判断 " + tone}
+            for tone in tones
+        ]
+        document = _Document(render_preview_html(body))
+        self.assertEqual([attrs["data-tone"] for tag, attrs in document.tags if tag == "aside"], list(tones))
+        for tone, label in tones.items():
+            self.assertIn(label, document.text)
+            self.assertIn("完整判断 " + tone, document.text)
+
     def test_gallery_links_are_local_and_untrusted_directory_names_are_rejected(self):
         entries = [dict(slug=slug, **preset) for slug, preset in PRESETS.items()]
         document = _Document(render_gallery_html(entries))
@@ -235,6 +293,14 @@ class PreviewTests(unittest.TestCase):
         self.assertIn(entry["name"], document.text)
         self.assertIn(entry["description"], document.text)
         self.assertFalse(any(tag in {"img", "script"} for tag, _ in document.tags))
+
+    def test_gallery_supplied_theme_dictionary_cannot_inject_css_values(self):
+        attack = '</style><script>unsafe()</script>'
+        entry = {"slug": "safe", "theme": {"slug": "atelier-bone", "primary": attack, "palette": [attack], "tints": [attack]}, "name": "安全主题", "description": "只使用注册色板"}
+        html = render_gallery_html([entry])
+        self.assertNotIn(attack, html)
+        self.assertIn(get_theme("atelier-bone")["tints"][0], html)
+        self.assertFalse(any(tag == "script" for tag, _ in _Document(html).tags))
 
 
 if __name__ == "__main__":

@@ -1,14 +1,63 @@
 """Behavior contract for Feishu-safe workflow SVG rendering."""
 
 import unittest
+import copy
 from xml.etree import ElementTree as ET
 
 from heige_feishu_word.svg_renderer import render_workflow_svg, validate_svg, _flow_em
+from heige_feishu_word.themes import get_theme
 
 from tests.fixtures import workflow_section
 
 
 class WorkflowSvgRendererTests(unittest.TestCase):
+    def test_embedded_stages_use_paired_colors_and_keep_white_canvas(self):
+        theme = get_theme()
+        theme["palette"] = ["#245BDD", "#CF582B", "#088976", "#983FA4", "#AC7607", "#C83469", "#27859E", "#557A20"]
+        theme["tints"] = ["#EEF3FF", "#FFF2EC", "#EAF8F3", "#F8EEF9", "#FFF7DE", "#FFEDF4", "#EBF7FB", "#F3F7E6"]
+        original = copy.deepcopy(theme)
+        for count in (4, 5, 6):
+            section = workflow_section()
+            section["steps"] = section["steps"][:count]
+            root = ET.fromstring(render_workflow_svg(section, theme, embedded=True))
+            baseline = ET.fromstring(render_workflow_svg(section, embedded=True))
+            groups = root.findall("{http://www.w3.org/2000/svg}g")
+            with self.subTest(count=count):
+                self.assertEqual(root.attrib["height"], baseline.attrib["height"])
+                self.assertEqual(root[0].attrib["fill"], "#FFFFFF")
+                self.assertEqual("".join(root.itertext()), "".join(baseline.itertext()))
+                regions = []
+                for index, group in enumerate(groups):
+                    rects = group.findall("{http://www.w3.org/2000/svg}rect")
+                    self.assertEqual([rect.attrib["fill"] for rect in rects], [theme["tints"][index], theme["palette"][index]])
+                    circle = group.find("{http://www.w3.org/2000/svg}circle")
+                    texts = group.findall("{http://www.w3.org/2000/svg}text")
+                    self.assertEqual(circle.attrib["stroke"], theme["palette"][index])
+                    self.assertEqual(texts[0].attrib["fill"], theme["palette"][index])
+                    self.assertTrue(all(text.attrib["fill"] == theme["ink"] for text in texts[1:]))
+                    region = rects[0]
+                    x, y, width, height = [float(region.attrib[key]) for key in ("x", "y", "width", "height")]
+                    self.assertTrue(0 <= x < x + width <= 1600)
+                    self.assertTrue(0 <= y < y + height <= int(root.attrib["height"]))
+                    regions.append((x, y, x + width, y + height))
+                for i, left in enumerate(regions):
+                    for right in regions[i+1:]:
+                        self.assertFalse(min(left[2], right[2]) > max(left[0], right[0]) and min(left[3], right[3]) > max(left[1], right[1]))
+                arrows = root.findall("{http://www.w3.org/2000/svg}polyline")
+                self.assertGreaterEqual(len(arrows), count - 1)
+        self.assertEqual(theme, original)
+
+    def test_embedded_workflow_validates_new_color_lists_and_supports_old_themes(self):
+        theme = get_theme()
+        theme.pop("tints", None)
+        self.assertEqual(validate_svg(render_workflow_svg(workflow_section(), theme, embedded=True)).errors, ())
+        for key in ("palette", "tints"):
+            for invalid in (None, [], "#FFFFFF", ["#fff"], [False], ['#ffffff" onload="alert(1)'], ["url(https://example.com)"]):
+                bad = copy.deepcopy(theme)
+                bad[key] = invalid
+                with self.subTest(key=key, value=invalid), self.assertRaisesRegex(ValueError, "theme." + key):
+                    render_workflow_svg(workflow_section(), bad, embedded=True)
+
     def test_embedded_workflow_uses_one_row_for_three_or_four_steps(self):
         for count in (3, 4, 5, 6):
             section = workflow_section()

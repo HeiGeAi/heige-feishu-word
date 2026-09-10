@@ -22,7 +22,46 @@ def nodes(svg, tag):
     return ET.fromstring(svg).findall(".//{http://www.w3.org/2000/svg}" + tag)
 
 
+def data_bars(svg):
+    return [node for node in nodes(svg, "rect") if node.attrib.get("id", "").startswith("data-bar-")]
+
+
 class ChartTests(unittest.TestCase):
+    def test_single_series_bar_colors_categories_and_multi_series_colors_series(self):
+        palette = ["#245BDD", "#CF582B", "#088976", "#983FA4", "#AC7607", "#C83469", "#27859E", "#557A20"]
+        section = chart("bar", [8, 7, 6, 5, 4, 3, 2, 0], list("ABCDEFGH"))
+        for embedded in (False, True):
+            with self.subTest(embedded=embedded):
+                svg = render_chart_svg(section, {"palette": palette}, embedded=embedded)
+                bars = data_bars(svg)
+                self.assertEqual([bar.attrib["fill"] for bar in bars], palette)
+                self.assertEqual([float(bar.attrib["width"]) for bar in bars], [555, 485.625, 416.25, 346.875, 277.5, 208.125, 138.75, 0])
+                multiple = copy.deepcopy(section)
+                multiple["series"].append({"name": "上期", "values": [1] * 8})
+                bars = data_bars(render_chart_svg(multiple, {"palette": palette}, embedded=embedded))
+                self.assertEqual([bar.attrib["fill"] for bar in bars], palette[:2] * 8)
+
+    def test_line_uses_distinct_series_colors_and_paired_tints_without_moving_data(self):
+        section = chart("line", [-10, 0, 10])
+        section["series"].append({"name": "上期", "values": [10, 0, -10]})
+        theme = {"palette": ["#245BDD", "#CF582B"], "tints": ["#EEF3FF", "#FFF2EC"]}
+        original = copy.deepcopy(theme)
+        svg = render_chart_svg(section, theme, embedded=True)
+        lines = nodes(svg, "polyline")
+        self.assertEqual([line.attrib["stroke"] for line in lines], theme["palette"])
+        self.assertNotEqual(lines[0].attrib.get("stroke-dasharray"), lines[1].attrib.get("stroke-dasharray"))
+        baseline = nodes(render_chart_svg(section, {}, embedded=True), "polyline")
+        self.assertEqual([line.attrib["points"] for line in lines], [line.attrib["points"] for line in baseline])
+        for tint in theme["tints"]:
+            self.assertTrue(any(node.attrib.get("fill") == tint for node in nodes(svg, "rect")))
+        self.assertEqual(theme, original)
+
+    def test_custom_tints_are_validated_before_they_enter_svg(self):
+        for value in (None, [], "#FFFFFF", ["red"], ["#FFF"], [12], ['#FFFFFF" onload="alert(1)'], ["url(https://example.com)"]):
+            for embedded in (False, True):
+                with self.subTest(value=value, embedded=embedded), self.assertRaisesRegex(ValueError, "theme.tints"):
+                    render_chart_svg(chart(), {"tints": value}, embedded=embedded)
+
     def test_embedded_charts_keep_all_data_without_duplicate_document_copy(self):
         for kind in ("bar", "line", "donut", "funnel", "progress"):
             section = chart(kind, [30.25, 20, 0])
@@ -45,7 +84,7 @@ class ChartTests(unittest.TestCase):
         svg = render_chart_svg(chart("bar", [-20, 40, 0]), {}, embedded=True)
         baseline = next(node for node in nodes(svg, "line") if node.attrib.get("y1") == "246")
         zero = float(baseline.attrib["x1"])
-        bars = [node for node in nodes(svg, "rect") if node.attrib.get("fill") == "#285A48" and float(node.attrib.get("height", 0)) > 10]
+        bars = data_bars(svg)
         self.assertEqual(len(bars), 3)
         self.assertEqual(zero, 705)
         self.assertAlmostEqual(float(bars[0].attrib["x"]) + float(bars[0].attrib["width"]), zero)
@@ -136,7 +175,7 @@ class ChartTests(unittest.TestCase):
         baseline = next(node for node in nodes(svg, "line") if node.attrib.get("y1") == "246")
         zero_x = float(baseline.attrib["x1"])
         self.assertAlmostEqual(zero_x, 705)
-        bars = [node for node in nodes(svg, "rect") if node.attrib.get("fill") == "#285A48" and float(node.attrib.get("height", 0)) > 10 and float(node.attrib.get("y", 0)) > 250 and float(node.attrib.get("y", 0)) < 714]
+        bars = data_bars(svg)
         self.assertEqual(len(bars), 3)
         first, second, third = bars
         self.assertAlmostEqual(float(first.attrib["x"]) + float(first.attrib["width"]), zero_x)

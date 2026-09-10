@@ -27,17 +27,21 @@ def render_metrics_svg(section, theme):
     for i, item in enumerate(items):
         col, row = i % columns, i // columns
         x, y = 40 + col * width, 20 + row * 340
-        if col:
-            parts.append(f'<line x1="{x-18:g}" y1="{y+24}" x2="{x-18:g}" y2="{y+294}" stroke="{theme["hairline"]}" stroke-width="2"/>')
-        parts.append(f'<rect x="{x:g}" y="{y+12}" width="44" height="4" fill="{theme["primary"]}"/>')
+        slot = i % min(4, len(theme['palette']))
+        accent = theme['palette'][slot]
+        tint = theme.get('tints', [theme['surface']] * len(theme['palette']))[slot]
+        featured = i == 0
+        background = theme['primary'] if featured else tint
+        parts.append(f'<rect x="{x-16:g}" y="{y}" width="{width-12:g}" height="312" rx="8" fill="{background}"/>')
+        parts.append(f'<rect x="{x:g}" y="{y+12}" width="64" height="5" fill="{theme["secondary"] if featured else accent}"/>')
         value = item['value']
         em = sum(1 if ord(c)>255 else .6 for c in value)
         size = min(76, (width-42)/max(em,1))
         if size < 32:
             raise _VisualCapacityError('metric value too long at readable size; adjust the unit or split the section')
-        parts.append(_text(value,x,y+119,size,theme['primary'] if i==0 else theme['ink'],max(em,1)+.1,1,600))
-        parts.append(_text(item['label'],x,y+182,29,theme['ink'],(width-44)/29,2,500))
-        parts.append(_text(item['note'],x,y+252,25,theme['muted'],(width-44)/25,2))
+        parts.append(_text(value,x,y+119,size,'#ffffff' if featured else accent,max(em,1)+.1,1,600))
+        parts.append(_text(item['label'],x,y+182,29,'#ffffff' if featured else theme['ink'],(width-44)/29,2,500))
+        parts.append(_text(item['note'],x,y+252,25,'#ffffff' if featured else theme['muted'],(width-44)/25,2))
     parts.append('</svg>')
     return ''.join(parts)
 

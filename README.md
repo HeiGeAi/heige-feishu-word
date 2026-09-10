@@ -2,36 +2,38 @@
 
 **为飞书白页设计的汇报模板与图表编译器。**
 
-把结构化内容编译成可编辑的飞书正文、紧凑的数据图表和离线预览。六套模板分别服务管理简报、经营复盘、项目同步、研究速递、方案评审与发布提案，用不同的信息结构和小面积主题色组织内容。
+把结构化内容编译成可编辑的飞书正文、紧凑的数据图表和离线预览。六套模板分别服务管理简报、经营复盘、项目同步、研究速递、方案评审与发布提案，用主辅双色、类别色和配套浅底组织信息。
 
 文档从标题、简要信息和核心判断开始，接上 KPI、图表、正文与行动。完整数据和流程说明收在文末，来源留在图旁。读者可以先读主线，再核对依据。
 
-当前开发版本：`v0.2.0a1`。本地编译不需要账号、不联网，运行时只用 Python 标准库。飞书写入由独立的 Lark CLI 完成。
+当前开发版本：`v0.2.0a2`。本地编译不需要账号、不联网，运行时只用 Python 标准库。飞书写入由独立的 Lark CLI 完成。
 
 ## 六套白页模板
 
 | 模板 | 视觉主题 | 沟通重点 |
 | :--- | :--- | :--- |
-| `executive-brief` | 白金管理简报 | 决策建议、预算配置与批准条件 |
-| `operating-review` | 蓝图经营复盘 | 收入趋势、目标偏差与渠道贡献 |
-| `project-pulse` | 青岚项目简报 | 完成度、里程碑与交付依赖 |
-| `research-digest` | 知见研究速递 | 核心发现、证据与研究局限 |
-| `decision-memo` | 朱墨决策备忘 | 同口径方案比较、成本与退出条件 |
-| `launch-story` | 玫红发布提案 | 发布亮点、转化漏斗与后续行动 |
+| `executive-brief` | 海蓝鎏金简报 | 决策建议、预算配置与批准条件 |
+| `operating-review` | 蓝橙经营复盘 | 收入趋势、目标偏差与渠道贡献 |
+| `project-pulse` | 孔雀琥珀简报 | 完成度、里程碑与交付依赖 |
+| `research-digest` | 莓果研究速递 | 核心发现、证据与研究局限 |
+| `decision-memo` | 朱砂石青备忘 | 同口径方案比较、成本与退出条件 |
+| `launch-story` | 洋红明黄提案 | 发布亮点、转化漏斗与后续行动 |
 
-六套主题均使用白色阅读底。细金线、蓝色读数、深青状态点、报刊双线、朱墨标记与玫红短线只在局部形成差异，图表与正文保持同一阅读背景。
+六套主题均使用白色阅读底，配有八种类别色及对应浅色。章节交替使用主辅色，首项 KPI 以主色实底和白字突出，其他指标采用配套浅底与深色读数；图表和流程阶段也通过颜色建立对应关系。白页可以承载丰富配色，同时让正文与图形保持连续的阅读背景。
+
+颜色表示类别和层级。成功、提醒或风险含义来自显式的 `callout.tone` 与 `timeline.status` 字段，任意 KPI 的颜色都不代表增长、下降或达标。标签、数值、编号标记和折线线型始终保留，读者辨识信息不只依赖颜色。
 
 模板使用明确标注的合成演示数据。正式汇报前请替换数值、口径、来源、日期和负责人，并重新核对图表结论。可直接使用 [六份可编辑 JSON 样例](examples/presets)。
 
 下方为生成的白页离线预览截图。原生飞书字体、块间距和画板转换效果以目标客户端为准。
 
-| 白金管理简报 | 蓝图经营复盘 |
+| 海蓝鎏金简报 | 蓝橙经营复盘 |
 | :--- | :--- |
-| ![白金管理简报白页预览](assets/previews/executive-brief.png) | ![蓝图经营复盘白页预览](assets/previews/operating-review.png) |
-| 青岚项目简报 | 知见研究速递 |
-| ![青岚项目简报白页预览](assets/previews/project-pulse.png) | ![知见研究速递白页预览](assets/previews/research-digest.png) |
-| 朱墨决策备忘 | 玫红发布提案 |
-| ![朱墨决策备忘白页预览](assets/previews/decision-memo.png) | ![玫红发布提案白页预览](assets/previews/launch-story.png) |
+| ![海蓝鎏金简报白页配色预览](assets/previews/executive-brief.png) | ![蓝橙经营复盘白页配色预览](assets/previews/operating-review.png) |
+| 孔雀琥珀简报 | 莓果研究速递 |
+| ![孔雀琥珀简报白页配色预览](assets/previews/project-pulse.png) | ![莓果研究速递白页配色预览](assets/previews/research-digest.png) |
+| 朱砂石青备忘 | 洋红明黄提案 |
+| ![朱砂石青备忘白页配色预览](assets/previews/decision-memo.png) | ![洋红明黄提案白页配色预览](assets/previews/launch-story.png) |
 
 ## 三分钟开始
 
@@ -58,7 +60,7 @@ heige-feishu-word gallery --output build/gallery
 
 打开 `build/gallery/index.html` 选择样本，或打开 `build/my-report/preview.html` 查看报告。不安装时，可将命令入口 `heige-feishu-word` 替换为 `PYTHONPATH=src python3 -m heige_feishu_word`。
 
-同一份内容可以换主题，以下示例改用青岚主题：
+同一份内容可以换主题，以下示例改用孔雀琥珀主题：
 
 ```bash
 heige-feishu-word compile my-report.json --theme nocturne-teal --output build/my-report-teal
@@ -69,6 +71,8 @@ heige-feishu-word compile my-report.json --theme nocturne-teal --output build/my
 ## 图表与组件
 
 支持横向条形、折线、环形、转化漏斗、目标完成度五类数据图表，以及结论高亮、KPI 指标组、原生表格、两栏内容、流程画板、行动清单、段落、里程碑时间轴和方案比较。
+
+单系列条形图按类别着色，多系列条形图与折线图保持同一系列的颜色一致。环形、漏斗和完成度条沿用类别色；流程阶段使用配套浅底、浓色编号和小箭头。颜色不会改变输入顺序、数值大小或图形比例。
 
 每张数据图必须提供来源与解读。正文保留图旁来源和核心判断，完整数据表集中放在飞书文末附录，仍可编辑与搜索。离线预览使用图下可展开的 `details` 保存这些明细，方便边看边核对；这项展开交互不会被宣称为飞书原生组件。
 
@@ -165,7 +169,9 @@ lark-cli docs +fetch --as user --doc '<创建返回的文档URL>' --detail full
 
 ## 明确的能力边界
 
-原生正文使用飞书的字体、间距与预设色名。精确 HEX 色板和构图作用于 SVG 与 HTML，原生文档不接受任意网页 CSS 皮肤。
+原生正文使用飞书的字体、间距与预设色名，例如 `blue`、`orange`、`green`、`purple` 及允许的浅色变体。项目将主辅色与类别色映射到这些色名，以保持相近色系；精确 HEX 色板和构图作用于 SVG 与 HTML。原生 Docx 的预设色名不能保证与图形颜色逐像素相同，也不接受任意网页 CSS 皮肤。
+
+主题的亮 `secondary` 用于图形强调；`palette[1]` 提供同色系更深的第二类别色，适合可读文字和数据系列。二者用途不同，不能把亮辅助色直接当作白底小字颜色。
 
 **SVG 图表是输入快照。修改飞书附录中的数据表不会自动重绘图表。** 更新数据时应修改源 JSON，重新编译并同步相关内容。真正绑定 Sheet 数据源的图表属于独立能力，本版尚未集成。
 
@@ -187,6 +193,6 @@ node scripts/check_browser.cjs build/gallery build/browser-evidence
 
 公开样本只含合成数据。不提交 Token、Cookie、app secret、个人 open_id、真实客户材料或私人云端回执。SVG 禁止脚本、远程资源与不受支持的滤镜。更多约定见 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [SECURITY.md](SECURITY.md)。
 
-视觉设定适配自 [HeiGe-Design](https://github.com/HeiGeAi/HeiGe-Design)（MIT）：atelier-bone、grid-bureau、nocturne-teal、broadsheet、moxi-void、soundwave-wrapped。此项目将这些设定转化为飞书白页中的局部标记与排版规则。图表、内容契约与编译代码均在本仓库。
+视觉设定适配自 [HeiGe-Design](https://github.com/HeiGeAi/HeiGe-Design)（MIT）：atelier-bone、grid-bureau、nocturne-teal、broadsheet、moxi-void、soundwave-wrapped。此项目将这些设定转化为飞书白页中的主辅色、类别色、配套浅底与排版规则。图表、内容契约与编译代码均在本仓库。
 
 [MIT License](LICENSE)

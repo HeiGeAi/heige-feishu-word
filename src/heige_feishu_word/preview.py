@@ -31,10 +31,18 @@ def _text(value: Any) -> str:
 
 def _tokens(theme: dict) -> str:
     # Only trusted registry tokens may become CSS values.
-    return ":root{" + ";".join(
-        "--" + key + ":" + theme[key]
+    values = ["--" + key + ":" + theme[key]
         for key in ("canvas", "surface", "ink", "muted", "hairline", "primary", "secondary")
-    ) + ";--sans:" + _SANS + ";--serif:" + _SERIF + ";--mono:" + _MONO + ";}"
+    ]
+    values += ["--color-%d:%s" % (index, color) for index, color in enumerate(theme["palette"])]
+    values += ["--tint-%d:%s" % (index, color) for index, color in enumerate(theme["tints"])]
+    return ":root{" + ";".join(values) + ";--sans:" + _SANS + ";--serif:" + _SERIF + ";--mono:" + _MONO + ";--accent:var(--primary);--accent-tint:var(--surface);}"
+
+
+_COLOR_CSS = "\n".join(
+    '[data-color="%d"]{--accent:var(--color-%d);--accent-tint:var(--tint-%d)}' % (index, index, index)
+    for index in range(4)
+)
 
 
 _CSS = r"""
@@ -54,40 +62,47 @@ svg{display:block;max-width:100%;height:auto}
 .toolbar{border-bottom:1px solid #edf0f3}
 .toolbar-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;color:var(--muted);font-size:12px}
 .toolbar-label{overflow-wrap:anywhere}.quiet-button{padding:5px 10px;border:1px solid var(--hairline);border-radius:3px;background:#fff;font-size:12px;line-height:1.5;white-space:nowrap}
-.quiet-button:hover{background:#f7f8fa}.document-header{padding:28px 0 20px;border-bottom:1px solid var(--hairline)}
+.quiet-button:hover{background:var(--tint-0);border-color:var(--primary);color:var(--primary)}.document-header{padding:28px 0 0}
+.header-rule{display:flex;gap:4px;height:4px;margin-top:18px;transform-origin:left;animation:mark-arrive .22s ease-out both}.header-rule i:first-child{width:68%;background:var(--primary)}.header-rule i:last-child{flex:1;background:var(--secondary)}
 .eyebrow{display:flex;align-items:center;gap:8px;font-size:12px;line-height:1.5;color:var(--muted);margin-bottom:10px}
 .document-mark{display:block;width:20px;height:2px;flex-shrink:0;background:var(--primary);transform-origin:left;animation:mark-arrive .22s ease-out both}
 .subtitle{margin-top:10px;color:var(--muted);font-size:14px;line-height:1.7}
 .meta{display:flex;flex-wrap:wrap;gap:4px 16px;color:var(--muted);font-size:12px;line-height:1.65;margin-top:9px}
 .meta .audience{flex-basis:100%}.doc-section{margin-top:28px;min-width:0;scroll-margin-top:20px}
-.section-heading{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
-.section-no{font:11px/1.5 var(--mono);color:var(--muted);flex-shrink:0}
-.section-content{min-width:0}.callout{border-left:3px solid var(--primary);padding:12px 16px;background:#f7f8fa;border-radius:0 3px 3px 0}
-.callout-label{font-size:11px;font-weight:650;color:var(--muted);margin-bottom:4px}.callout p{font-size:16px;line-height:1.75}
-.callout[data-tone="warning"],.callout[data-tone="risk"]{border-left-style:double;border-left-width:4px}
+.section-heading{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.section-heading h2{display:flex;align-items:center;gap:8px}.section-heading h2:before{content:"";width:3px;height:16px;flex-shrink:0;background:var(--accent)}
+.section-no{display:flex;align-items:center;justify-content:center;min-width:28px;min-height:25px;padding:3px 5px;border-radius:3px;font:11px/1.5 var(--mono);color:var(--accent);background:var(--accent-tint);flex-shrink:0}
+.section-content{min-width:0}.callout{border-left:4px solid var(--primary);padding:12px 16px;background:var(--tint-0);border-radius:0 4px 4px 0}
+.callout-label{font-size:11px;font-weight:650;color:var(--primary);margin-bottom:4px}.callout p{font-size:16px;line-height:1.75}
+.callout[data-tone="success"]{border-left-color:#167344;background:#e8f5ed}.callout[data-tone="success"] .callout-label{color:#167344}
+.callout[data-tone="warning"]{border-left-color:#91570a;background:#fff4d6}.callout[data-tone="warning"] .callout-label{color:#91570a}
+.callout[data-tone="risk"]{border-left-color:#b42338;background:#fff0f1}.callout[data-tone="risk"] .callout-label{color:#b42338}
 .table-scroll{overflow-x:auto;max-width:100%;border:1px solid var(--hairline);border-radius:3px}
 table{width:100%;border-collapse:collapse;text-align:left;font-size:14px;line-height:1.65}
 th,td{padding:10px 12px;border-bottom:1px solid var(--hairline);vertical-align:top;min-width:104px}
-th{font-weight:600;background:#f7f8fa}tr:last-child td{border-bottom:0}td:first-child{font-weight:500}
+th{font-weight:600;background:var(--accent-tint);color:var(--accent);border-bottom:2px solid var(--accent)}tr:last-child td{border-bottom:0}td:first-child{font-weight:500}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 28px}
-.grid-item{padding-top:10px;border-top:1px solid var(--hairline)}.grid-item p{font-size:14px;line-height:1.8;margin-top:5px}
+.grid-item{min-width:0}.grid-item h3{padding:6px 10px;border-left:3px solid var(--accent);background:var(--accent-tint);color:var(--accent);border-radius:0 3px 3px 0}.grid-item p{font-size:14px;line-height:1.8;margin-top:7px}
 .actions{list-style:none;margin:0;padding:0}.action{display:grid;grid-template-columns:15px minmax(0,1fr);gap:10px;padding:11px 0;border-top:1px solid var(--hairline)}
-.action-box{width:13px;height:13px;border:1px solid var(--muted);border-radius:2px;margin-top:7px}.action-task{font-size:15px}
+.action-box{width:13px;height:13px;border:1px solid var(--accent);background:var(--accent-tint);border-radius:2px;margin-top:7px}.action-task{font-size:15px}
 .action-meta{display:flex;gap:4px 16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:3px}
 .timeline{list-style:none;padding:0;margin:0}.milestone{display:grid;grid-template-columns:84px 16px minmax(0,1fr);gap:12px;position:relative;padding-bottom:22px}
-.milestone:last-child{padding-bottom:0}.milestone-date{font-size:12px;line-height:1.65;color:var(--muted);padding-top:3px}
+.milestone:last-child{padding-bottom:0}.milestone-date{font-size:12px;line-height:1.65;font-weight:500;color:var(--accent);padding-top:3px}
 .milestone-marker{position:relative;display:flex;justify-content:center}.milestone-marker:after{content:"";position:absolute;top:14px;bottom:-23px;left:8px;width:1px;background:var(--hairline)}
 .milestone:last-child .milestone-marker:after{display:none}.milestone-dot{height:8px;width:8px;border:1.5px solid var(--muted);background:#fff;border-radius:50%;margin-top:8px;position:relative;z-index:1}
-.milestone[data-status="done"] .milestone-dot,.milestone[data-status="active"] .milestone-dot{background:var(--primary);border-color:var(--primary)}
-.milestone[data-status="risk"] .milestone-dot{border-radius:0;transform:rotate(45deg)}.milestone-header{display:flex;align-items:baseline;gap:12px}
-.milestone-status{font-size:11px;color:var(--muted);white-space:nowrap}.milestone p{margin-top:4px;font-size:14px}
-.recommendation{margin-top:12px;border-left:2px solid var(--primary);padding-left:12px;font-size:15px}
+.milestone[data-status="active"] .milestone-dot{background:var(--primary);border-color:var(--primary)}
+.milestone[data-status="done"] .milestone-dot{background:#167344;border-color:#167344}.milestone[data-status="risk"] .milestone-dot{background:#b42338;border-color:#b42338;border-radius:0;transform:rotate(45deg)}
+.milestone-header{display:flex;align-items:baseline;gap:12px}.milestone h3{color:var(--accent)}
+.milestone-status{font-size:11px;line-height:1.5;color:var(--color-1);background:var(--tint-1);padding:2px 7px;border-radius:3px;white-space:nowrap}
+.milestone[data-status="active"] .milestone-status{background:var(--tint-0);color:var(--primary)}.milestone[data-status="done"] .milestone-status{background:#e8f5ed;color:#167344}.milestone[data-status="risk"] .milestone-status{background:#fff0f1;color:#b42338}
+.milestone p{margin-top:4px;font-size:14px}
+.recommendation{margin-top:12px;border-left:3px solid var(--accent);padding:9px 12px;background:var(--accent-tint);font-size:15px}
 .chart-insight{font-size:16px;line-height:1.75;margin-bottom:12px}.diagram-scroll{width:100%;max-width:100%;overflow:auto;background:#fff}
 .diagram-open{display:block;width:100%;border:0;background:#fff;padding:0;text-align:left;transition:opacity .15s ease-out}
 .diagram-open:hover{opacity:.9}.diagram-open svg{width:100%;max-width:none;height:auto}
 .figure-caption{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:6px;font-size:12px;line-height:1.7;color:var(--muted)}
 .figure-caption span{min-width:0}.figure-hint{flex-shrink:0;font-size:11px;white-space:nowrap}.phone-hint{display:none}
-details{margin-top:9px}summary{width:fit-content;max-width:100%;padding:3px 0;font-size:12px;color:var(--muted)}details[open] summary{margin-bottom:8px}
+details{margin-top:9px}summary{width:fit-content;max-width:100%;padding:3px 0;font-size:12px;color:var(--accent)}details[open] summary{margin-bottom:8px}
 .workflow-list{padding-left:1.5em;font-size:14px;margin:0}.workflow-list li{padding:5px 0}.workflow-list strong{margin-right:8px}
 .document-footer{margin-top:36px;padding:16px 0 36px;border-top:1px solid var(--hairline);font-size:12px;line-height:1.8;color:var(--muted)}
 .figure-dialog{width:min(1280px,94vw);max-width:94vw;max-height:92vh;border:1px solid var(--hairline);border-radius:4px;background:#fff;color:var(--ink);padding:0}
@@ -97,11 +112,11 @@ details{margin-top:9px}summary{width:fit-content;max-width:100%;padding:3px 0;fo
 /* Small document marks survive the shared white sheet. */
 body[data-layout="editorial"] .document-header h1{font-family:var(--serif);font-weight:600}
 body[data-layout="editorial"] .document-mark{width:28px;height:1px}
-body[data-layout="ledger"] .section-no{color:var(--primary)}body[data-layout="ledger"] .section-no:before{content:"§"}
+body[data-layout="ledger"] .section-no:before{content:"§"}
 body[data-layout="ledger"] .document-mark{width:8px;height:8px}body[data-layout="ledger"] table{font-variant-numeric:tabular-nums}
 body[data-layout="nocturne"] .document-mark{width:6px;height:6px;border-radius:50%}
 body[data-layout="nocturne"] .milestone-status{font-variant-numeric:tabular-nums}
-body[data-layout="press"] .document-header{border-bottom:3px double var(--hairline)}body[data-layout="press"] .document-header h1{font-family:var(--serif);font-weight:700}
+body[data-layout="press"] .header-rule{height:3px}body[data-layout="press"] .document-header h1{font-family:var(--serif);font-weight:700}
 body[data-layout="press"] .document-mark{height:4px;background:transparent;border-block:1px solid var(--primary)}
 body[data-layout="ink"] .document-header h1{font-family:var(--serif);font-weight:600}
 body[data-layout="ink"] .document-mark{width:9px;height:9px;background:transparent;border:2px solid var(--primary)}
@@ -109,7 +124,7 @@ body[data-layout="festival"] .document-mark{width:22px;height:3px}
 body[data-layout="festival"] .section-heading h2{font-weight:700}
 @keyframes mark-arrive{from{opacity:0;transform:scaleX(.6)}to{opacity:1;transform:scaleX(1)}}
 @media(max-width:600px){
-.document-main,.toolbar-inner{width:calc(100% - 32px)}.toolbar-inner{font-size:11px;gap:10px}.document-header{padding:22px 0 16px}
+.document-main,.toolbar-inner{width:calc(100% - 32px)}.toolbar-inner{font-size:11px;gap:10px}.document-header{padding:22px 0 0}
 h1{font-size:28px;line-height:1.45}h2{font-size:20px}.subtitle{font-size:13px}.meta{gap:4px 12px;font-size:11px}.doc-section{margin-top:24px}
 .grid{grid-template-columns:1fr;gap:16px}.section-heading{gap:8px}.callout{padding:10px 12px}.callout p{font-size:15px}
 .figure-caption{display:block}.figure-hint{display:block;margin-top:4px}.phone-hint{display:inline}.diagram-open{min-width:640px}.dialog-controls{align-items:flex-start;flex-direction:column;padding:12px;gap:8px}
@@ -123,14 +138,15 @@ h1{font-size:28px;line-height:1.45}h2{font-size:20px}.subtitle{font-size:13px}.m
 
 _OVERVIEW_CSS = r"""
 *{box-sizing:border-box}html,body{margin:0;background:#fff;color:var(--ink);font:14px/1.65 var(--sans);overflow-wrap:anywhere}
-.metric-overview{width:100%;padding:4px 0}.overview-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline)}
-.overview-metric{padding:16px 18px;min-width:0}.overview-metric+.overview-metric{border-left:1px solid var(--hairline)}
-.overview-value{margin:0;font-size:28px;line-height:1.3;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em}.overview-metric:first-child .overview-value{color:var(--primary)}
-.overview-label{margin:7px 0 0;font-size:13px;font-weight:600}.overview-note{margin:5px 0 0;font-size:11px;line-height:1.7;color:var(--muted)}
+.metric-overview{width:100%;padding:4px 0}.overview-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.overview-metric{padding:16px 18px;min-width:0;background:var(--accent-tint);border-radius:4px}.overview-metric:before{content:"";display:block;width:28px;height:3px;margin-bottom:13px;background:var(--accent)}
+.overview-value{margin:0;font-size:28px;line-height:1.3;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--accent)}
+.overview-label{margin:7px 0 0;font-size:13px;font-weight:600}.overview-note{margin:5px 0 0;font-size:11px;line-height:1.7;color:var(--ink)}
+.overview-metric:first-child{background:var(--primary);color:#fff}.overview-metric:first-child:before{background:var(--secondary)}.overview-metric:first-child .overview-value,.overview-metric:first-child .overview-note{color:#fff}
 body[data-layout="ledger"] .overview-value,body[data-layout="nocturne"] .overview-value{font-family:var(--mono)}
 body[data-layout="editorial"] .overview-value,body[data-layout="ink"] .overview-value{font-family:var(--serif)}
-@media(max-width:640px){.overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-metric{padding:13px 12px}.overview-metric:nth-child(2n+1){border-left:0}.overview-metric:nth-child(n+3){border-top:1px solid var(--hairline)}.overview-value{font-size:25px}}
-@media(max-width:280px){.overview-metrics{grid-template-columns:1fr}.overview-metric+.overview-metric{border-left:0;border-top:1px solid var(--hairline)}}
+@media(max-width:640px){.overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-metric{padding:13px 12px}.overview-value{font-size:25px}}
+@media(max-width:280px){.overview-metrics{grid-template-columns:1fr}}
 @media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 """
 
@@ -178,7 +194,7 @@ def _header(meta: dict, theme: dict) -> str:
     metadata = ["<span>" + _text(meta[key]) + "</span>" for key in ("status", "reading_time") if meta.get(key)]
     if meta.get("audience"):
         metadata.append('<span class="audience">适用读者：' + _text("、".join(meta["audience"])) + "</span>")
-    return '<header class="document-header">' + eyebrow + "<h1>" + _text(meta["title"]) + "</h1>" + subtitle + '<div class="meta">' + "".join(metadata) + "</div></header>"
+    return '<header class="document-header">' + eyebrow + "<h1>" + _text(meta["title"]) + "</h1>" + subtitle + '<div class="meta">' + "".join(metadata) + '</div><div class="header-rule" aria-hidden="true"><i></i><i></i></div></header>'
 
 
 def _table(columns: list, rows: list, label: str) -> str:
@@ -210,7 +226,7 @@ def _section_content(section: dict, theme: dict) -> str:
     if kind == "table":
         return _table(section["columns"], section["rows"], section["title"])
     if kind == "grid":
-        return '<div class="grid">' + "".join('<article class="grid-item"><h3>' + _text(item["title"]) + "</h3><p>" + _text(item["body"]) + "</p></article>" for item in section["items"]) + "</div>"
+        return '<div class="grid">' + "".join('<article class="grid-item" data-color="' + str(index % 2) + '"><h3>' + _text(item["title"]) + "</h3><p>" + _text(item["body"]) + "</p></article>" for index, item in enumerate(section["items"])) + "</div>"
     if kind == "actions":
         return '<ol class="actions">' + "".join('<li class="action"><span class="action-box" aria-hidden="true"></span><div><p class="action-task">' + _text(item["action"]) + '</p><p class="action-meta"><span>负责人：' + _text(item["owner"]) + "</span><span>截止：" + _text(item["due"]) + "</span></p></div></li>" for item in section["items"]) + "</ol>"
     if kind == "timeline":
@@ -232,7 +248,7 @@ def _section_content(section: dict, theme: dict) -> str:
 
 
 def _section(section: dict, theme: dict, index: int) -> str:
-    return '<section class="doc-section" id="section-' + _e(section["id"]) + '" data-section-type="' + _e(section["type"]) + '"><div class="section-heading"><span class="section-no">' + f'{index:02d}' + "</span><h2>" + _text(section["title"]) + '</h2></div><div class="section-content">' + _section_content(section, theme) + "</div></section>"
+    return '<section class="doc-section" id="section-' + _e(section["id"]) + '" data-section-type="' + _e(section["type"]) + '" data-color="' + str((index - 1) % 2) + '"><div class="section-heading"><span class="section-no">' + f'{index:02d}' + "</span><h2>" + _text(section["title"]) + '</h2></div><div class="section-content">' + _section_content(section, theme) + "</div></section>"
 
 
 def _document(title: str, theme: dict, content: str, overview: bool = False, extra_css: str = "", script: str = "") -> str:
@@ -240,7 +256,7 @@ def _document(title: str, theme: dict, content: str, overview: bool = False, ext
     if overview:
         metas += '<meta name="use-iframe" content="true"><meta name="html-box-height-mode" content="auto">'
     css = _OVERVIEW_CSS if overview else _CSS
-    return '<!doctype html><html lang="zh-CN"><head>' + metas + "<title>" + _e(title) + "</title><style>" + _tokens(theme) + css + extra_css + '</style></head><body data-theme="' + theme["slug"] + '" data-layout="' + theme["layout"] + '"' + (' class="overview"' if overview else "") + ">" + content + ("<script>" + script + "</script>" if script else "") + "</body></html>\n"
+    return '<!doctype html><html lang="zh-CN"><head>' + metas + "<title>" + _e(title) + "</title><style>" + _tokens(theme) + _COLOR_CSS + css + extra_css + '</style></head><body data-theme="' + theme["slug"] + '" data-layout="' + theme["layout"] + '"' + (' class="overview"' if overview else "") + ">" + content + ("<script>" + script + "</script>" if script else "") + "</body></html>\n"
 
 
 def render_preview_html(body: Dict[str, Any]) -> str:
@@ -270,10 +286,10 @@ def render_overview_html(body: Dict[str, Any]) -> str:
     content = '<main class="metric-overview">'
     if metrics:
         content += '<div class="overview-metrics">' + "".join(
-            '<article class="overview-metric"><p class="overview-value">' + _text(item["value"]) +
+            '<article class="overview-metric" data-color="' + str(index % 4) + '"><p class="overview-value">' + _text(item["value"]) +
             '</p><p class="overview-label">' + _text(item["label"]) +
             '</p><p class="overview-note">' + _text(item["note"]) + "</p></article>"
-            for item in metrics["items"]
+            for index, item in enumerate(metrics["items"])
         ) + "</div>"
     content += "</main>"
     result = _document("指标速览", theme, content, overview=True)
@@ -288,11 +304,11 @@ _GALLERY_CSS = r"""
 .gallery-intro{padding:28px 0 26px}.gallery-intro h1{font-size:32px;line-height:1.45}.gallery-intro p{font-size:15px;line-height:1.8;color:var(--muted);margin-top:12px;max-width:46em}
 .gallery-list{list-style:none;padding:0;margin:0}.gallery-entry{display:grid;grid-template-columns:24px minmax(0,1fr) 184px 18px;gap:18px;align-items:center;border-top:1px solid var(--hairline);padding:22px 0;text-decoration:none}
 .gallery-entry:hover h2{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px}.gallery-entry:hover .gallery-arrow{transform:translateX(3px)}
-.gallery-number{align-self:start;font:11px/1.6 var(--mono);color:var(--muted);padding-top:5px}.gallery-copy h2{font-size:20px;line-height:1.5}.gallery-copy p{font-size:13px;line-height:1.75;color:var(--muted);margin-top:7px}
+.gallery-number{align-self:start;font:11px/1.6 var(--mono);color:var(--swatch-primary);background:var(--swatch-tint);padding:4px;text-align:center;border-radius:3px}.gallery-copy h2{font-size:20px;line-height:1.5;color:var(--swatch-primary)}.gallery-copy p{font-size:13px;line-height:1.75;color:var(--muted);margin-top:7px}
 .gallery-slug{display:block;font-size:11px;color:var(--muted);margin-top:8px}.gallery-arrow{font-size:18px;transition:transform .16s ease-out}
 .gallery-swatch{min-width:0;height:110px;background:#fff;border:1px solid var(--swatch-hairline);padding:13px;color:var(--swatch-ink);display:flex;flex-direction:column;justify-content:space-between}
 .swatch-line{width:20px;height:2px;background:var(--swatch-primary)}.swatch-title{font-size:12px;font-weight:600;line-height:1.5}.swatch-bars{display:flex;gap:5px;align-items:end;height:19px;border-bottom:1px solid var(--swatch-hairline)}
-.swatch-bars i{height:100%;width:14px;background:var(--swatch-primary)}.swatch-bars i:nth-child(2){height:65%;background:var(--swatch-hairline)}.swatch-bars i:nth-child(3){height:42%;background:var(--swatch-hairline)}
+.swatch-bars i{height:100%;width:14px;background:var(--swatch-primary)}.swatch-bars i:nth-child(2){height:65%;background:var(--swatch-second)}.swatch-bars i:nth-child(3){height:42%;background:var(--swatch-third)}
 .gallery-swatch[data-preview-layout="editorial"] .swatch-title,.gallery-swatch[data-preview-layout="ink"] .swatch-title{font-family:var(--serif)}
 .gallery-swatch[data-preview-layout="ledger"] .swatch-line{width:6px;height:6px}.gallery-swatch[data-preview-layout="nocturne"] .swatch-line{width:6px;height:6px;border-radius:50%}
 .gallery-swatch[data-preview-layout="press"]{border-top:3px double var(--swatch-hairline)}.gallery-swatch[data-preview-layout="ink"] .swatch-line{width:8px;height:8px;border:1px solid var(--swatch-primary);background:#fff}
@@ -313,7 +329,8 @@ def render_gallery_html(entries: Iterable[Dict[str, Any]]) -> str:
         supplied_theme = entry.get("theme", slug)
         theme = get_theme(supplied_theme.get("slug") if isinstance(supplied_theme, dict) else supplied_theme)
         colors = ";".join("--swatch-" + key + ":" + theme[key] for key in ("ink", "primary", "hairline"))
-        swatch = '<div class="gallery-swatch" aria-hidden="true" data-preview-layout="' + theme["layout"] + '" style="' + colors + '"><span class="swatch-line"></span><span class="swatch-title">' + _e(theme["name"]) + '</span><span class="swatch-bars"><i></i><i></i><i></i></span></div>'
-        parts.append('<li><a class="gallery-entry" href="' + _e(slug) + '/preview.html"><span class="gallery-number">' + f'{index:02d}' + '</span><div class="gallery-copy"><h2>' + _e(entry["name"]) + '</h2><p>' + _text(entry["description"]) + '</p><span class="gallery-slug">' + _e(theme["name"]) + '</span></div>' + swatch + '<span class="gallery-arrow" aria-hidden="true">↗</span></a></li>')
-    content = '<main class="gallery-main"><div class="gallery-masthead"><span>HEIGE FEISHU WORD</span><span>' + f'{len(entries):02d}' + ' DOCUMENT SAMPLES</span></div><header class="gallery-intro"><h1>把重要的信息，写进一页好文档。</h1><p>六套白页样本，用清晰的层级、紧凑的图表和小面积主题色组织信息。选择沟通场景，查看完整的示范内容与数据口径。</p></header><ol class="gallery-list">' + "".join(parts) + '</ol><footer class="gallery-footer">本地样本按飞书白页的阅读结构设计。原生排版与可选 HTML 指标块的实际效果，需在目标客户端验证；示范数据均为合成内容。</footer></main>'
+        colors += ";--swatch-second:" + theme["palette"][1] + ";--swatch-third:" + theme["palette"][2] + ";--swatch-tint:" + theme["tints"][0]
+        swatch = '<div class="gallery-swatch" aria-hidden="true" data-preview-layout="' + theme["layout"] + '"><span class="swatch-line"></span><span class="swatch-title">' + _e(theme["name"]) + '</span><span class="swatch-bars"><i></i><i></i><i></i></span></div>'
+        parts.append('<li><a class="gallery-entry" style="' + colors + '" href="' + _e(slug) + '/preview.html"><span class="gallery-number">' + f'{index:02d}' + '</span><div class="gallery-copy"><h2>' + _e(entry["name"]) + '</h2><p>' + _text(entry["description"]) + '</p><span class="gallery-slug">' + _e(theme["name"]) + '</span></div>' + swatch + '<span class="gallery-arrow" aria-hidden="true">↗</span></a></li>')
+    content = '<main class="gallery-main"><div class="gallery-masthead"><span>HEIGE FEISHU WORD</span><span>' + f'{len(entries):02d}' + ' DOCUMENT SAMPLES</span></div><header class="gallery-intro"><h1>把重要的信息，写进一页好文档。</h1><p>六套白页样本，用双色文档标记、分层色板和紧凑图表组织信息。选择沟通场景，查看完整的示范内容与数据口径。</p></header><ol class="gallery-list">' + "".join(parts) + '</ol><footer class="gallery-footer">本地样本按飞书白页的阅读结构设计。原生排版与可选 HTML 指标块的实际效果，需在目标客户端验证；示范数据均为合成内容。</footer></main>'
     return _document("HeiGe Feishu Word 文档模板集", get_theme("grid-bureau"), content, extra_css=_GALLERY_CSS)
