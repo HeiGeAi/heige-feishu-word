@@ -115,6 +115,8 @@ python3 -m pip install -e .
 
 完整样本位于 [`examples/standard-sample/body.json`](examples/standard-sample/body.json)。
 
+> 说明：`theme` 字段当前只做校验并写入 `manifest.json`，渲染器尚未接入主题调色板，不会影响 XML 与 SVG 的实际配色。主题化能力见路线图。
+
 ## 在 Agent 中调用
 
 任何能够执行本地命令的 Agent 都可以使用同一套接口：
