@@ -49,8 +49,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = _parser().parse_args(argv)
     try:
         body = _load_body(args.body)
-        validate_body(body)
         if args.command == "validate":
+            validate_body(body)
             result = {"ok": True, "title": body["meta"]["title"]}
         else:
             manifest = compile_body(body, args.output)

@@ -23,9 +23,7 @@ def _balanced_ratios(count: int) -> List[str]:
         return ["1"]
     if count == 2:
         return ["0.5", "0.5"]
-    if count == 3:
-        return ["0.34", "0.33", "0.33"]
-    return ["0.25"] * min(count, 4)
+    return ["0.34", "0.33", "0.33"]
 
 
 def _chunks(items: List[Dict[str, Any]], size: int = 3) -> Iterable[List[Dict[str, Any]]]:
@@ -128,9 +126,9 @@ def _render_workflow(section: Dict[str, Any]) -> str:
 def _render_actions(section: Dict[str, Any]) -> str:
     checkboxes = []
     for item in section.get("items") or []:
-        owner = _e(item.get("owner", "待认领"))
-        action = _e(item.get("action", ""))
-        due = _e(item.get("due", "待确认"))
+        owner = _e(item["owner"])
+        action = _e(item["action"])
+        due = _e(item["due"])
         checkboxes.append(
             f'<checkbox done="false"><b>{owner}</b>｜{action}｜'
             f'<span background-color="light-blue">{due}</span></checkbox>'
