@@ -58,6 +58,53 @@ def _wrap_text(text: str, line_length: int = 18) -> List[str]:
     return lines or [""]
 
 
+def _char_units(char: str) -> float:
+    """Approximate glyph width: CJK counts full, Latin partial."""
+
+    if ord(char) > 0x2E7F:
+        return 1.0
+    if char == " ":
+        return 0.3
+    return 0.55
+
+
+def _text_units(text: str) -> float:
+    return sum(_char_units(char) for char in text)
+
+
+def _wrap_by_width(text: str, max_units: float) -> List[str]:
+    """Wrap text by estimated glyph width instead of raw character count."""
+
+    compact = " ".join(str(text).split())
+    if not compact:
+        return [""]
+    tokens = re.findall(r"[A-Za-z0-9]+|[^A-Za-z0-9]", compact)
+    lines: List[str] = []
+    current = ""
+    for token in tokens:
+        if _text_units(current + token) <= max_units:
+            current += token
+            continue
+        if current.strip():
+            lines.append(current.rstrip())
+            current = ""
+        while _text_units(token) > max_units:
+            width = 0.0
+            split = len(token)
+            for index, char in enumerate(token):
+                char_width = _char_units(char)
+                if width + char_width > max_units:
+                    split = index
+                    break
+                width += char_width
+            lines.append(token[:split])
+            token = token[split:]
+        current = token.lstrip()
+    if current.strip():
+        lines.append(current.rstrip())
+    return lines or [""]
+
+
 def _text_lines(
     lines: Iterable[str],
     *,
@@ -82,7 +129,26 @@ def _text_lines(
 
 
 def _card_svg(step: Dict[str, Any], number: int, x: int, y: int, fill: str) -> str:
-    title = escape(str(step.get("title", "")))
+    title_lines = _wrap_by_width(str(step.get("title", "")), 10.0)
+    if len(title_lines) > 2:
+        raise BodyValidationError(
+            f"workflow step title is too long to fit card {number}"
+        )
+    if len(title_lines) == 1:
+        title_svg = (
+            f'<text x="{x + 118}" y="{y + 62}" font-size="27" font-weight="700" '
+            f'fill="#2E4A2A">{escape(title_lines[0])}</text>'
+        )
+    else:
+        title_svg = _text_lines(
+            title_lines,
+            x=x + 118,
+            y=y + 52,
+            font_size=27,
+            fill="#2E4A2A",
+            line_height=32,
+            font_weight=700,
+        )
     description = _wrap_text(str(step.get("description", "")), 17)
     if len(description) > 3:
         raise BodyValidationError(
@@ -97,8 +163,7 @@ def _card_svg(step: Dict[str, Any], number: int, x: int, y: int, fill: str) -> s
             'stroke="#2E4A2A" stroke-width="2"/>',
             f'<text x="{x + 60}" y="{y + 63}" text-anchor="middle" font-size="25" '
             f'font-weight="700" fill="#243A21">{number_text}</text>',
-            f'<text x="{x + 118}" y="{y + 62}" font-size="27" font-weight="700" '
-            f'fill="#2E4A2A">{title}</text>',
+            title_svg,
             f'<line x1="{x + 24}" y1="{y + 100}" x2="{x + 406}" y2="{y + 100}" '
             'stroke="#2E4A2A" stroke-width="2"/>',
             _text_lines(
@@ -151,7 +216,12 @@ def render_workflow_svg(section: Dict[str, Any]) -> str:
         for x1, y1, x2, y2 in connector_specs[: max(0, len(steps) - 1)]
     ]
 
-    title = escape(str(section.get("title", "业务交付链路")))
+    title_lines = _wrap_by_width(str(section.get("title", "业务交付链路")), 26.0)
+    if len(title_lines) > 1:
+        raise BodyValidationError(
+            "whiteboard_workflow title is too long to fit the board header"
+        )
+    title = escape(title_lines[0])
     return "".join(
         (
             '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" '

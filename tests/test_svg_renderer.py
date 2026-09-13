@@ -53,6 +53,29 @@ class WorkflowSvgRendererTests(unittest.TestCase):
         with self.assertRaises(BodyValidationError):
             render_workflow_svg(section)
 
+    def test_workflow_svg_wraps_long_step_titles_within_the_card(self):
+        section = workflow_section()
+        section["steps"][0]["title"] = "统一文档结构与证据整理"  # 11 chars
+
+        svg = render_workflow_svg(section)
+
+        self.assertIn(">统一文档结构与证据整</tspan>", svg)
+        self.assertIn(">理</tspan>", svg)
+
+    def test_workflow_svg_rejects_step_titles_that_do_not_fit(self):
+        section = workflow_section()
+        section["steps"][0]["title"] = "这是一个明显超出卡片标题容量两行预算的超长标题"
+
+        with self.assertRaisesRegex(BodyValidationError, "title"):
+            render_workflow_svg(section)
+
+    def test_workflow_svg_rejects_board_titles_that_do_not_fit(self):
+        section = workflow_section()
+        section["title"] = "这是一个明显超出画板主标题容量单行预算的超长标题会被拒绝"
+
+        with self.assertRaisesRegex(BodyValidationError, "title"):
+            render_workflow_svg(section)
+
     def test_workflow_svg_rejects_descriptions_that_do_not_fit(self):
         section = workflow_section()
         section["steps"][0]["description"] = "这是一段明显超过三行容量的说明文字" * 8
