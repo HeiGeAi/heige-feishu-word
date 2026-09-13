@@ -50,6 +50,33 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["manifest"]["schema_version"], "0.1")
         self.assertTrue((output_dir / "document.xml").is_file())
 
+    def test_validate_rejects_oversized_body_file_as_json(self):
+        oversized = self.root / "oversized.json"
+        oversized.write_bytes(b" " * (10 * 1024 * 1024 + 1))
+        stderr = StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(["validate", str(oversized)])
+
+        payload = json.loads(stderr.getvalue())
+        self.assertEqual(exit_code, 2)
+        self.assertFalse(payload["ok"])
+        self.assertIn("limit", payload["error"])
+
+    def test_validate_reports_deeply_nested_json_as_json_error(self):
+        nested = self.root / "nested.json"
+        depth = 200000
+        nested.write_text('{"a":' + "[" * depth + "1" + "]" * depth + "}", encoding="utf-8")
+        stderr = StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(["validate", str(nested)])
+
+        payload = json.loads(stderr.getvalue())
+        self.assertEqual(exit_code, 2)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["error"])
+
     def test_compile_reports_an_oversized_board_description_as_json(self):
         body = standard_body()
         workflow = next(

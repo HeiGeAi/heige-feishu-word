@@ -12,7 +12,15 @@ from .compiler import compile_body
 from .model import BodyValidationError, validate_body
 
 
+MAX_BODY_BYTES = 10 * 1024 * 1024
+
+
 def _load_body(path: Path) -> Dict[str, Any]:
+    size = path.stat().st_size
+    if size > MAX_BODY_BYTES:
+        raise BodyValidationError(
+            f"body JSON is {size} bytes, exceeding the 10 MiB limit: {path}"
+        )
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise BodyValidationError("body JSON must contain an object")
@@ -53,7 +61,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             }
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
-    except (BodyValidationError, OSError, json.JSONDecodeError) as exc:
+    except (BodyValidationError, OSError, json.JSONDecodeError, RecursionError) as exc:
         print(
             json.dumps(
                 {"ok": False, "error": str(exc)},
