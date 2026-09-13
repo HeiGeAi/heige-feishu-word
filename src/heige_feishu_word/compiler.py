@@ -103,6 +103,12 @@ def compile_body(body: Dict[str, Any], output_dir: Path) -> Dict[str, Any]:
             json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         )
 
+        if output_dir.is_symlink() or (
+            output_dir.exists() and not output_dir.is_dir()
+        ):
+            raise BodyValidationError(
+                f"output path exists and is not a directory: {output_dir}"
+            )
         if output_dir.exists():
             shutil.rmtree(output_dir)
         temporary_dir.replace(output_dir)

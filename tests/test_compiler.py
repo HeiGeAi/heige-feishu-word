@@ -52,6 +52,27 @@ class BodyCompilerTests(unittest.TestCase):
         self.assertIn("企业 AI 文档交付引擎 MVP 决策简报", document_xml)
         self.assertIn('viewBox="0 0 1600 900"', workflow_svg)
 
+    def test_rejects_output_path_that_is_a_regular_file(self):
+        body = standard_body()
+        self.output_dir.write_text("occupied", encoding="utf-8")
+
+        with self.assertRaisesRegex(BodyValidationError, "not a directory"):
+            compile_body(body, self.output_dir)
+
+        self.assertTrue(self.output_dir.is_file())
+
+    def test_rejects_output_path_that_is_a_symlink(self):
+        body = standard_body()
+        target = Path(self.temporary_directory.name) / "real-output"
+        target.mkdir()
+        self.output_dir.symlink_to(target, target_is_directory=True)
+
+        with self.assertRaisesRegex(BodyValidationError, "not a directory"):
+            compile_body(body, self.output_dir)
+
+        self.assertTrue(self.output_dir.is_symlink())
+        self.assertEqual(list(target.iterdir()), [])
+
     def test_rejects_assets_instead_of_silently_dropping_them(self):
         body = standard_body()
         body["assets"] = [{"id": "source-deck", "path": "briefing.pptx"}]
