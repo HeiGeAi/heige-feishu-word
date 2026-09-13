@@ -118,9 +118,11 @@ def render_workflow_svg(section: Dict[str, Any]) -> str:
 
     steps = list(section.get("steps") or [])
     if not steps:
-        raise ValueError("whiteboard_workflow requires at least one step")
+        raise BodyValidationError("whiteboard_workflow requires at least one step")
     if len(steps) > 6:
-        raise ValueError("whiteboard_workflow supports at most six steps in v0.1")
+        raise BodyValidationError(
+            "whiteboard_workflow supports at most six steps in v0.1"
+        )
 
     positions = (
         (80, 250),

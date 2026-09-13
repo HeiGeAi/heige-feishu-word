@@ -2,6 +2,7 @@
 
 import unittest
 
+from heige_feishu_word.model import BodyValidationError
 from heige_feishu_word.svg_renderer import render_workflow_svg, validate_svg
 
 from tests.fixtures import workflow_section
@@ -36,6 +37,21 @@ class WorkflowSvgRendererTests(unittest.TestCase):
 
         self.assertIn(">Word、PPT</tspan>", svg)
         self.assertNotIn(">Wo</tspan>", svg)
+
+    def test_workflow_svg_rejects_missing_or_extra_steps_as_body_errors(self):
+        section = workflow_section()
+        section["steps"] = []
+
+        with self.assertRaises(BodyValidationError):
+            render_workflow_svg(section)
+
+        section = workflow_section()
+        extra_step = dict(section["steps"][0])
+        extra_step["id"] = "extra"
+        section["steps"] = section["steps"] + [extra_step]
+
+        with self.assertRaises(BodyValidationError):
+            render_workflow_svg(section)
 
     def test_workflow_svg_rejects_descriptions_that_do_not_fit(self):
         section = workflow_section()
