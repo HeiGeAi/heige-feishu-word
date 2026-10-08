@@ -6,6 +6,7 @@ import hashlib
 import json
 import shutil
 import tempfile
+from xml.etree import ElementTree
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
@@ -66,7 +67,13 @@ def compile_body(body: Dict[str, Any], output_dir: Path) -> Dict[str, Any]:
             source_path,
             json.dumps(body, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         )
-        _write_text(document_path, render_document_xml(body))
+        document_xml = render_document_xml(body)
+        try:
+            # Feishu consumes a fragment with multiple top-level blocks.
+            ElementTree.fromstring(f"<root>{document_xml}</root>")
+        except (ElementTree.ParseError, UnicodeError) as exc:
+            raise BodyValidationError(f"invalid document XML: {exc}") from exc
+        _write_text(document_path, document_xml)
 
         artifacts: List[Dict[str, Any]] = [
             _artifact_record(temporary_dir, source_path, "source_body"),
@@ -109,10 +116,49 @@ def compile_body(body: Dict[str, Any], output_dir: Path) -> Dict[str, Any]:
             raise BodyValidationError(
                 f"output path exists and is not a directory: {output_dir}"
             )
-        if output_dir.exists():
-            shutil.rmtree(output_dir)
-        temporary_dir.replace(output_dir)
+        _install_bundle(temporary_dir, output_dir)
         return manifest
-    except Exception:
+    finally:
         shutil.rmtree(temporary_dir, ignore_errors=True)
-        raise
+
+
+def _install_bundle(temporary_dir: Path, output_dir: Path) -> None:
+    """Install complete output, preserving a recoverable previous generation.
+
+    Directory replacement uses two renames, not a crash-atomic swap. On a
+    caught failure restore the old output; if restoration fails retain its
+    backup and report the exact recovery path. Callers must serialize builds
+    targeting the same output directory.
+    """
+
+    if not output_dir.exists():
+        temporary_dir.replace(output_dir)
+        return
+
+    backup_root = Path(
+        tempfile.mkdtemp(prefix=f".{output_dir.name}.backup.", dir=str(output_dir.parent))
+    )
+    backup = backup_root / "previous"
+    preserve_backup = False
+    try:
+        # Set before rename so an interruption immediately after it cannot
+        # cause the previous generation to be removed by finally.
+        preserve_backup = True
+        output_dir.replace(backup)
+        try:
+            temporary_dir.replace(output_dir)
+            preserve_backup = False
+        except BaseException:
+            try:
+                backup.replace(output_dir)
+                preserve_backup = False
+            except OSError as exc:
+                raise OSError(
+                    f"bundle installation and rollback failed; previous output retained at {backup}"
+                ) from exc
+            raise
+    finally:
+        # Never remove a backup if rollback failed. Cleanup after successful
+        # installation is best effort: it must not turn success into failure.
+        if not preserve_backup or not backup.exists():
+            shutil.rmtree(backup_root, ignore_errors=True)
