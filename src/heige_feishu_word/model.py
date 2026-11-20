@@ -44,6 +44,17 @@ def _reject_unknown_keys(value: Dict[str, Any], allowed: frozenset, path: str) -
 def _required_text(value: Any, path: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise BodyValidationError(f"{path} must be a non-empty string")
+    for character in value:
+        codepoint = ord(character)
+        if not (
+            codepoint in (0x9, 0xA, 0xD)
+            or 0x20 <= codepoint <= 0xD7FF
+            or 0xE000 <= codepoint <= 0xFFFD
+            or 0x10000 <= codepoint <= 0x10FFFF
+        ):
+            raise BodyValidationError(
+                f"{path} contains an XML-forbidden character: U+{codepoint:04X}"
+            )
     return value
 
 
@@ -73,7 +84,7 @@ def _validate_section(section: Dict[str, Any], index: int) -> None:
     if section_type == "callout":
         _required_text(section.get("body"), f"{path}.body")
         tone = section.get("tone", "info")
-        if tone not in {"success", "warning", "risk", "info"}:
+        if not isinstance(tone, str) or tone not in {"success", "warning", "risk", "info"}:
             raise BodyValidationError(f"{path}.tone is unsupported: {tone!r}")
         return
 
